@@ -29,8 +29,7 @@ static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
 // 2. if after the 'alert' state cools down there's a visible difference on the
 // chalkboard, then proceed to save the frame. otherwise, just continue.
 static void evaluateAndExtract(const cv::Mat &curr_frame, TrackState &state,
-                               unsigned int track_id,
-                               const std::string &out_dir) {
+                               unsigned int track_id) {
     if (state.prev_frame.empty()) { // inital state
         state.prev_frame = curr_frame.clone();
         state.last_saved_frame = curr_frame.clone();
@@ -61,7 +60,7 @@ static void evaluateAndExtract(const cv::Mat &curr_frame, TrackState &state,
                         .count();
 
                 std::string filename = std::format(
-                    "{}/track_{}_{}.png", out_dir, track_id, timestamp);
+                    "{}/track_{}_{}.png", OUT_DIR, track_id, timestamp);
                 cv::imwrite(filename, curr_frame);
 
                 std::cout << std::format("Track {} updated. Saved to {}.",
