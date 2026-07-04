@@ -1,9 +1,12 @@
 #include "ingestion.hpp"
 #include "config.hpp"
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <format>
 #include <iostream>
+#include <mutex>
+#include <thread>
 
 namespace kreda {
 
@@ -82,53 +85,77 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
                       const std::array<cv::Mat, COLUMN_CNT> &warp_matrices) {
     std::filesystem::create_directory(OUT_DIR);
 
-    cv::Mat frame;
-    int retry_cnt = 0;
-
     cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0);
     std::array<TrackState, COLUMN_CNT> track_states; // holds state for all cols
 
-    while (true) {
-        bool succ = cap.read(frame);
+    std::mutex frame_mtx;
+    cv::Mat shared_frame;
+    std::atomic<bool> is_running{true};
+    std::atomic<bool> stream_healthy{true};
 
-        if (!succ || frame.empty()) {
-            retry_cnt++;
-            std::cerr << std::format(
-                             "Frame dropped or stream stuttered. Retry {}/{}.",
-                             retry_cnt, MAX_RETRIES)
-                      << std::endl;
+    // network i/o
+    std::thread capture_thrd([&]() {
+        cv::Mat temp_frame;
+        unsigned int retry_cnt = 0;
 
-            if (retry_cnt >= MAX_RETRIES) {
-                std::cerr << "Stream lost completely. Reconnecting."
-                          << std::endl;
+        while (is_running) {
+            if (!cap.read(temp_frame) || temp_frame.empty()) {
+                retry_cnt++;
+                if (retry_cnt >= MAX_RETRIES) {
+                    stream_healthy = false;
+                    std::cerr << "Stream lost completely. Reconnecting."
+                              << std::endl;
 
-                // reboot the connection
-                cap.release();
-                cap.open(rtsp_url, cv::CAP_FFMPEG);
-                cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
+                    // reboot the connection
+                    cap.release();
+                    cap.open(rtsp_url, cv::CAP_FFMPEG);
+                    cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
 
-                retry_cnt = 0;
+                    retry_cnt = 0;
 
-                // wait a second for it to wake up
-                cv::waitKey(1000);
+                    // wait a second for it to wake up
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 continue;
             }
 
-            cv::waitKey(33);
-            continue;
-        }
+            retry_cnt = 0;
+            stream_healthy = true;
 
-        retry_cnt = 0;
+            // lock long enough to drop the new frame in
+            {
+                std::lock_guard<std::mutex> lock(frame_mtx);
+                shared_frame = temp_frame.clone();
+            }
+        }
+    });
+
+    cv::Mat local_frame;
+
+    // cpu math and disk i/o
+    while (true) {
+        {
+            std::lock_guard<std::mutex> lock(frame_mtx);
+            if (shared_frame.empty()) {
+                // yield cpu if no frame is ready yet
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                continue;
+            }
+            local_frame = shared_frame.clone();
+            shared_frame.release(); // to not process the same frame twice
+        }
 
         for (unsigned int i{}; i < COLUMN_CNT; ++i) {
             cv::Mat dewarped;
 
             // homography
-            cv::warpPerspective(frame, dewarped, warp_matrices[i],
+            cv::warpPerspective(local_frame, dewarped, warp_matrices[i],
                                 cv::Size(OUT_WID, OUT_HEI));
 
             // pixel math
             cv::Mat final = enhanceChalkboard(dewarped, clahe);
+            evaluateAndExtract(final, track_states[i], i);
 
             // debug display
             if (SHOW_RAW)
@@ -136,8 +163,13 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
                            dewarped);
             cv::imshow(std::format("KREDA column {}", i + 1), final);
         }
+
         cv::pollKey();
     }
+
+    // cleanup
+    if (capture_thrd.joinable())
+        capture_thrd.join();
 }
 
 } // namespace kreda
