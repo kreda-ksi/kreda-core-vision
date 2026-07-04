@@ -91,7 +91,6 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
     std::mutex frame_mtx;
     cv::Mat shared_frame;
     std::atomic<bool> is_running{true};
-    std::atomic<bool> stream_healthy{true};
 
     // network i/o
     std::thread capture_thrd([&]() {
@@ -102,7 +101,6 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             if (!cap.read(temp_frame) || temp_frame.empty()) {
                 retry_cnt++;
                 if (retry_cnt >= MAX_RETRIES) {
-                    stream_healthy = false;
                     std::cerr << "Stream lost completely. Reconnecting."
                               << std::endl;
 
@@ -121,7 +119,6 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             }
 
             retry_cnt = 0;
-            stream_healthy = true;
 
             // lock long enough to drop the new frame in
             {
@@ -135,15 +132,19 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
 
     // cpu math and disk i/o
     while (true) {
+        bool have_frame = false;
         {
             std::lock_guard<std::mutex> lock(frame_mtx);
-            if (shared_frame.empty()) {
-                // yield cpu if no frame is ready yet
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
-                continue;
+            if (!shared_frame.empty()) {
+                local_frame = shared_frame.clone();
+                shared_frame.release(); // to not process the same frame twice
+                have_frame = true;
             }
-            local_frame = shared_frame.clone();
-            shared_frame.release(); // to not process the same frame twice
+        }
+        if (!have_frame) {
+            // yield cpu if no frame is ready yet
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            continue;
         }
 
         for (unsigned int i{}; i < COLUMN_CNT; ++i) {
