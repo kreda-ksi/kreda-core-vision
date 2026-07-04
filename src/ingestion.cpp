@@ -53,6 +53,7 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             cv::imshow(std::format("KREDA column {}", i + 1),
                        dewarped_boards[i]);
         }
+        cv::pollKey();
     }
 }
 

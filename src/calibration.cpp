@@ -27,6 +27,31 @@ static void onMouseClick(int event, int x, int y, int flags, void *userdata) {
 }
 
 std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
+    std::array<cv::Mat, COLUMN_CNT> warp_matrices;
+
+    cv::FileStorage fs_read(CALIB_FILE, cv::FileStorage::READ);
+    if (fs_read.isOpened()) {
+        std::cout << std::format("Found {}. Loading matrices.", CALIB_FILE)
+                  << std::endl;
+        bool succ = true;
+
+        for (unsigned int i = 0; i < COLUMN_CNT; ++i) {
+            fs_read[std::format("track_{}", i)] >> warp_matrices[i];
+            if (warp_matrices[i].empty()) {
+                succ = false;
+                break;
+            }
+        }
+
+        fs_read.release();
+
+        if (succ)
+            return warp_matrices;
+        std::cout << "Calibration file invalid or outdated. Running manual "
+                     "calibration."
+                  << std::endl;
+    }
+
     cv::Mat frame;
 
     // read frame 1 for calibration
@@ -73,13 +98,23 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
         cv::Point2f(0, OUT_HEI),
     };
 
-    std::array<cv::Mat, COLUMN_CNT> warp_matrices;
+    cv::FileStorage fs_write(CALIB_FILE, cv::FileStorage::WRITE);
+    if (!fs_write.isOpened()) {
+        std::cerr << std::format("Could not open {} for writing.", CALIB_FILE)
+                  << std::endl;
+    }
 
     for (unsigned int i{}; i < COLUMN_CNT; ++i) {
         std::vector<cv::Point2f> track_src(src_points.begin() + i * 4,
                                            src_points.begin() + (i + 1) * 4);
         warp_matrices[i] = cv::getPerspectiveTransform(track_src, dst_points);
+
+        if (fs_write.isOpened())
+            fs_write << std::format("track_{}", i) << warp_matrices[i];
     }
+
+    if (fs_write.isOpened())
+        fs_write.release();
 
     return warp_matrices;
 }
