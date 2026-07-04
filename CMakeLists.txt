@@ -13,6 +13,8 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 
 add_executable(vision_engine
   src/main.cpp
+  src/calibration.cpp
+  src/ingestion.cpp
 )
 
 target_link_libraries(vision_engine
