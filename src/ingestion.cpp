@@ -7,6 +7,22 @@
 
 namespace kreda {
 
+struct TrackState {
+    cv::Mat prev_frame;
+    cv::Mat last_saved_frame;
+    int still_cnt = 0;
+    bool is_moving = false;
+};
+
+static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
+                                 const cv::Ptr<cv::CLAHE> &clahe) {
+    cv::Mat gray, enhanced, final;
+    cv::cvtColor(raw_board, gray, cv::COLOR_BGR2GRAY);
+    clahe->apply(gray, enhanced);
+    cv::bitwise_not(enhanced, final);
+    return final;
+}
+
 void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
                       const std::array<cv::Mat, COLUMN_CNT> &warp_matrices) {
     cv::Mat frame;
@@ -51,17 +67,8 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             // homography
             cv::warpPerspective(frame, dewarped_boards[i], warp_matrices[i],
                                 cv::Size(OUT_WID, OUT_HEI));
-            // grayscale
-            cv::Mat gray_board;
-            cv::cvtColor(dewarped_boards[i], gray_board, cv::COLOR_BGR2GRAY);
 
-            // clahe
-            cv::Mat clahe_board;
-            clahe->apply(gray_board, clahe_board);
-
-            // invert
-            cv::Mat final_board;
-            cv::bitwise_not(clahe_board, final_board);
+            cv::Mat final_board = enhanceChalkboard(dewarped_boards[i], clahe);
 
             // debug display
             if (SHOW_RAW)
