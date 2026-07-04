@@ -1,4 +1,5 @@
 #include "ingestion.hpp"
+#include "config.hpp"
 #include <chrono>
 #include <format>
 #include <iostream>
@@ -11,6 +12,8 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
     cv::Mat frame;
     std::array<cv::Mat, COLUMN_CNT> dewarped_boards;
     int retry_cnt = 0;
+
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0);
 
     while (true) {
         bool succ = cap.read(frame);
@@ -48,10 +51,23 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             // homography
             cv::warpPerspective(frame, dewarped_boards[i], warp_matrices[i],
                                 cv::Size(OUT_WID, OUT_HEI));
+            // grayscale
+            cv::Mat gray_board;
+            cv::cvtColor(dewarped_boards[i], gray_board, cv::COLOR_BGR2GRAY);
+
+            // clahe
+            cv::Mat clahe_board;
+            clahe->apply(gray_board, clahe_board);
+
+            // invert
+            cv::Mat final_board;
+            cv::bitwise_not(clahe_board, final_board);
 
             // debug display
-            cv::imshow(std::format("KREDA column {}", i + 1),
-                       dewarped_boards[i]);
+            if (SHOW_RAW)
+                cv::imshow(std::format("KREDA column {} (raw)", i + 1),
+                           dewarped_boards[i]);
+            cv::imshow(std::format("KREDA column {}", i + 1), final_board);
         }
         cv::pollKey();
     }
