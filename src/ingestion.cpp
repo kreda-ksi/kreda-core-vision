@@ -28,6 +28,27 @@ struct TrackState {
     bool was_active = false;
 };
 
+class LatestFrame {
+  public:
+    void push(cv::Mat &&f) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        frame_ = std::move(f);
+    }
+
+    bool tryTake(cv::Mat &out) {
+        std::lock_guard<std::mutex> lock(mtx_);
+        if (frame_.empty())
+            return false;
+
+        out = std::move(frame_);
+        return true;
+    }
+
+  private:
+    cv::Mat frame_;
+    std::mutex mtx_;
+};
+
 bool openStream(cv::VideoCapture &cap, const std::string &url) {
     cap.release();
     cap.open(url, cv::CAP_FFMPEG);
@@ -231,8 +252,7 @@ static void processColumn(const cv::Mat &frame, const cv::Mat &warp,
 }
 
 static void captureLoop(cv::VideoCapture &cap, const std::string &url,
-                        cv::Mat &shared_frame, std::mutex &frame_mtx,
-                        std::atomic<bool> &is_running) {
+                        LatestFrame &shared, std::atomic<bool> &is_running) {
     cv::Mat temp_frame;
     unsigned int retry_cnt = 0;
 
@@ -251,14 +271,11 @@ static void captureLoop(cv::VideoCapture &cap, const std::string &url,
         }
 
         retry_cnt = 0;
-        {
-            std::lock_guard<std::mutex> lock(frame_mtx);
-            shared_frame = temp_frame.clone();
-        }
+        shared.push(std::move(temp_frame));
     }
 }
 
-static void consumeLoop(cv::Mat &shared_frame, std::mutex &frame_mtx,
+static void consumeLoop(LatestFrame &shared,
                         const std::array<cv::Mat, COLUMN_CNT> &warp_matrices,
                         std::array<TrackState, COLUMN_CNT> &track_states,
                         const cv::Ptr<cv::CLAHE> &clahe,
@@ -266,16 +283,7 @@ static void consumeLoop(cv::Mat &shared_frame, std::mutex &frame_mtx,
     cv::Mat local_frame;
 
     while (is_running.load(std::memory_order_relaxed)) {
-        bool have_frame = false;
-        {
-            std::lock_guard<std::mutex> lock(frame_mtx);
-            if (!shared_frame.empty()) {
-                local_frame = shared_frame.clone();
-                shared_frame.release();
-                have_frame = true;
-            }
-        }
-        if (!have_frame) {
+        if (!shared.tryTake(local_frame)) {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
@@ -296,16 +304,13 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
     cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0);
     std::array<TrackState, COLUMN_CNT> track_states; // holds state for all cols
 
-    std::mutex frame_mtx;
-    cv::Mat shared_frame;
+    LatestFrame shared;
     std::atomic<bool> is_running{true};
 
     std::thread capture_thrd(captureLoop, std::ref(cap), std::cref(rtsp_url),
-                             std::ref(shared_frame), std::ref(frame_mtx),
-                             std::ref(is_running));
+                             std::ref(shared), std::ref(is_running));
 
-    consumeLoop(shared_frame, frame_mtx, warp_matrices, track_states, clahe,
-                is_running);
+    consumeLoop(shared, warp_matrices, track_states, clahe, is_running);
 
     // cleanup
     if (capture_thrd.joinable())
