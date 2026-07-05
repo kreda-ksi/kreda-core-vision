@@ -18,7 +18,7 @@ inline constexpr bool SHOW_RAW = true;
 inline constexpr int MOTION_THRESH_INTENSITY =
     30; // px intens diff to count as 'changed'
 inline constexpr int MOTION_TRIGGER_PXS =
-    5000; // how many pxs must change to trigger movement
+    1000; // how many pxs must change to trigger movement
 inline constexpr int STATE_CHANGE_PXS =
     15000; // how many pxs must differ from the last saved board
 inline constexpr int STILL_COOLDOWN =
