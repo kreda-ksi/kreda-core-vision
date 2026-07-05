@@ -45,10 +45,10 @@ static bool loadCalibration(std::array<cv::Mat, COLUMN_CNT> &warps) {
 }
 
 std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
-    std::array<cv::Mat, COLUMN_CNT> warp_matrices;
+    std::array<cv::Mat, COLUMN_CNT> warps;
 
-    if (loadCalibration(warp_matrices))
-        return warp_matrices;
+    if (loadCalibration(warps))
+        return warps;
 
     cv::Mat frame;
 
@@ -105,16 +105,15 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
     for (unsigned int i{}; i < COLUMN_CNT; ++i) {
         std::vector<cv::Point2f> track_src(src_points.begin() + i * 4,
                                            src_points.begin() + (i + 1) * 4);
-        warp_matrices[i] = cv::getPerspectiveTransform(track_src, dst_points);
-
         if (fs_write.isOpened())
             fs_write << std::format("track_{}", i) << warp_matrices[i];
+        warps[i] = cv::getPerspectiveTransform(track_src, dst_points);
     }
 
     if (fs_write.isOpened())
         fs_write.release();
 
-    return warp_matrices;
+    return warps;
 }
 
 } // namespace kreda
