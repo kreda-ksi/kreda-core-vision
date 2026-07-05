@@ -16,6 +16,8 @@ inline constexpr double TOTAL_AREA = OUT_WID * OUT_HEI;
 inline constexpr unsigned int MAX_RETRIES = 30;
 
 inline constexpr bool SHOW_RAW = true;
+inline constexpr bool LOG_ENABLED = true;
+inline constexpr bool SHOW_GUI = true;
 
 inline constexpr int MOTION_THRESH_INTENSITY =
     30; // px intens diff to count as 'changed'
@@ -39,4 +41,5 @@ inline constexpr std::chrono::seconds SNAPSHOT_INTERVAL{20};
 // i/o
 inline constexpr const char *CALIB_FILE = "calibration.xml";
 inline constexpr const char *OUT_DIR = "staging";
+inline constexpr const char *LOG_FILE = "run.csv";
 } // namespace kreda

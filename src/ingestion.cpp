@@ -1,5 +1,8 @@
 #include "ingestion.hpp"
 #include "config.hpp"
+#include "debug_hud.hpp"
+#include "telemetry.hpp"
+#include "track_log.hpp"
 #include <atomic>
 #include <chrono>
 #include <deque>
@@ -53,6 +56,10 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
             chalk_pxs += a;
     }
     if (chalk_pxs <= STATE_CHANGE_PXS) {
+        if (LOG_ENABLED)
+            TrackLogger::instance().event(
+                track_id, std::format("SKIP_{}_{}", reason, raw_pxs),
+                chalk_pxs);
         return false;
     }
 
@@ -67,6 +74,9 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
         std::format("{}/track_{}_{}.png", OUT_DIR, track_id, timestamp);
     cv::imwrite(filename, frame);
 
+    if (LOG_ENABLED)
+        TrackLogger::instance().event(
+            track_id, std::format("SAVE_{}_{}", reason, raw_pxs), chalk_pxs);
 
     state.last_save_time = std::chrono::steady_clock::now();
     state.last_saved_frame = frame.clone();
@@ -98,6 +108,8 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
         if (state.recover_cooldown >= SLIDE_COOLDOWN) {
             state.slide_recover = false;
             state.recover_cooldown = 0;
+            if (LOG_ENABLED)
+                TrackLogger::instance().event(track_id, "RECOVERY_DONE");
         }
 
         state.motion_hist.push_back(motion_frame.clone());
@@ -125,9 +137,19 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
 
     display_frame.setTo(cv::Scalar(0, 255, 255), thresh);
 
-    auto since_save = std::chrono::steady_clock::now() - state.last_save_time;
+    FrameTelemetry t{track_id,
+                     changed,
+                     is_moving,
+                     is_sliding,
+                     state.slide_recover,
+                     state.still_cnt,
+                     state.recover_cooldown,
+                     state.save_flash--};
 
-
+    if (LOG_ENABLED)
+        TrackLogger::instance().frame(t);
+    if (SHOW_GUI)
+        drawHud(display_frame, t);
 
     auto since_save = std::chrono::steady_clock::now() - state.last_save_time;
     if (since_save > SNAPSHOT_INTERVAL) {
@@ -136,6 +158,8 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
     }
 
     if (is_sliding) {
+        if (LOG_ENABLED)
+            TrackLogger::instance().event(track_id, "SLIDE_DETECTED", changed);
 
         size_t idx = state.history_buff.size() > SLIDE_LOOKBACK_FRAMES
                          ? state.history_buff.size() - 1 - SLIDE_LOOKBACK_FRAMES
@@ -182,8 +206,8 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             if (!cap.read(temp_frame) || temp_frame.empty()) {
                 retry_cnt++;
                 if (retry_cnt >= MAX_RETRIES) {
-                    std::cerr << "Stream lost completely. Reconnecting."
-                              << std::endl;
+                    if (LOG_ENABLED)
+                        TrackLogger::instance().event(0, "STREAM_RECONNECT", 0);
 
                     // reboot the connection
                     cap.release();
