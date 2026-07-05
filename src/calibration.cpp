@@ -44,6 +44,20 @@ static bool loadCalibration(std::array<cv::Mat, COLUMN_CNT> &warps) {
     return true;
 }
 
+static void saveCalibration(const std::array<cv::Mat, COLUMN_CNT> &warps,
+                            const std::vector<cv::Point2f> &src_points) {
+    cv::FileStorage fs(CALIB_FILE, cv::FileStorage::WRITE);
+    if (!fs.isOpened()) {
+        std::cerr << std::format("Could not open {} for writing.", CALIB_FILE)
+                  << std::endl;
+        return;
+    }
+
+    for (unsigned int i{}; i < COLUMN_CNT; ++i)
+        fs << std::format("track_{}", i) << warps[i];
+    fs << "src_points" << src_points;
+}
+
 std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
     std::array<cv::Mat, COLUMN_CNT> warps;
 
@@ -96,22 +110,13 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
         cv::Point2f(0, OUT_HEI),
     };
 
-    cv::FileStorage fs_write(CALIB_FILE, cv::FileStorage::WRITE);
-    if (!fs_write.isOpened()) {
-        std::cerr << std::format("Could not open {} for writing.", CALIB_FILE)
-                  << std::endl;
-    }
-
     for (unsigned int i{}; i < COLUMN_CNT; ++i) {
         std::vector<cv::Point2f> track_src(src_points.begin() + i * 4,
                                            src_points.begin() + (i + 1) * 4);
-        if (fs_write.isOpened())
-            fs_write << std::format("track_{}", i) << warp_matrices[i];
         warps[i] = cv::getPerspectiveTransform(track_src, dst_points);
     }
 
-    if (fs_write.isOpened())
-        fs_write.release();
+    saveCalibration(warps, src_points);
 
     return warps;
 }
