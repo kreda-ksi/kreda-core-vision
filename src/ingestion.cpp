@@ -2,6 +2,7 @@
 #include "config.hpp"
 #include <atomic>
 #include <chrono>
+#include <deque>
 #include <filesystem>
 #include <format>
 #include <iostream>
@@ -11,10 +12,18 @@
 namespace kreda {
 
 struct TrackState {
-    cv::Mat prev_frame;
+    std::deque<cv::Mat> history_buff;
+    std::deque<cv::Mat> motion_hist;
     cv::Mat last_saved_frame;
+
+    std::chrono::steady_clock::time_point last_save_time =
+        std::chrono::steady_clock::now();
+
     int still_cnt = 0;
-    bool is_moving = false;
+    bool slide_recover = false;
+    int recover_cooldown = 0;
+    int save_flash = 0;
+    bool was_active = false;
 };
 
 static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
@@ -26,59 +35,131 @@ static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
     return final;
 }
 
+static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
+                          unsigned int track_id, const char *reason) {
+    cv::Mat cdiff, cthresh;
+    cv::absdiff(frame, state.last_saved_frame, cdiff);
+    cv::threshold(cdiff, cthresh, CONTENT_THRESH_INTENSITY, 255,
+                  cv::THRESH_BINARY);
+
+    int raw_pxs = cv::countNonZero(cthresh);
+
+    cv::Mat labels, stats, centroids;
+    int n = cv::connectedComponentsWithStats(cthresh, labels, stats, centroids);
+    int chalk_pxs = 0;
+    for (int i = 1; i < n; ++i) { // 0 is bg
+        int a = stats.at<int>(i, cv::CC_STAT_AREA);
+        if (a < MAX_STROKE_COMP_AREA)
+            chalk_pxs += a;
+    }
+    if (chalk_pxs <= STATE_CHANGE_PXS) {
+        return false;
+    }
+
+    if (cv::countNonZero(cthresh) <= STATE_CHANGE_PXS)
+        return false;
+
+    auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+
+    std::string filename =
+        std::format("{}/track_{}_{}.png", OUT_DIR, track_id, timestamp);
+    cv::imwrite(filename, frame);
+
+
+    state.last_save_time = std::chrono::steady_clock::now();
+    state.last_saved_frame = frame.clone();
+    state.save_flash = 15;
+    return true;
+}
+
 // evaluates if a frame should be saved based on verification.
 // the verification process is as follows:
 // 1. on image difference (motion detection) track goes to an 'alert' state,
 // 2. if after the 'alert' state cools down there's a visible difference on the
 // chalkboard, then proceed to save the frame. otherwise, just continue.
-static void evaluateAndExtract(const cv::Mat &curr_frame, TrackState &state,
-                               unsigned int track_id) {
-    if (state.prev_frame.empty()) { // inital state
-        state.prev_frame = curr_frame.clone();
-        state.last_saved_frame = curr_frame.clone();
+static void evaluateAndExtract(const cv::Mat &motion_frame,
+                               const cv::Mat &content_frame, TrackState &state,
+                               unsigned int track_id, cv::Mat &display_frame) {
+    // update ring buffer
+    state.history_buff.push_back(content_frame.clone());
+    if (state.history_buff.size() > PRE_SLIDE_BUFFER_FRAMES)
+        state.history_buff.pop_front();
+
+    if (state.last_saved_frame.empty()) { // inital state
+        state.last_saved_frame = content_frame.clone();
+        state.motion_hist.push_back(motion_frame.clone());
         return;
     }
 
-    cv::Mat diff1, thresh1;
-    cv::absdiff(curr_frame, state.prev_frame, diff1);
-    cv::threshold(diff1, thresh1, MOTION_THRESH_INTENSITY, 255,
-                  cv::THRESH_BINARY);
-
-    if (cv::countNonZero(thresh1) > MOTION_TRIGGER_PXS) {
-        state.is_moving = true;
-        state.still_cnt = 0;
-    } else if (state.is_moving) {
-        state.still_cnt++;
-
-        if (state.still_cnt >= STILL_COOLDOWN) {
-            cv::Mat diff2, thresh2;
-            cv::absdiff(curr_frame, state.last_saved_frame, diff2);
-            cv::threshold(diff2, thresh2, MOTION_THRESH_INTENSITY, 255,
-                          cv::THRESH_BINARY);
-
-            if (cv::countNonZero(thresh2) > STATE_CHANGE_PXS) {
-                auto timestamp =
-                    std::chrono::duration_cast<std::chrono::seconds>(
-                        std::chrono::system_clock::now().time_since_epoch())
-                        .count();
-
-                std::string filename = std::format(
-                    "{}/track_{}_{}.png", OUT_DIR, track_id, timestamp);
-                cv::imwrite(filename, curr_frame);
-
-                std::cout << std::format("Track {} updated. Saved to {}.",
-                                         track_id, filename)
-                          << std::endl;
-
-                state.last_saved_frame = curr_frame.clone();
-            }
-
-            state.is_moving = false;
-            state.still_cnt = 0;
+    if (state.slide_recover) {
+        state.recover_cooldown++;
+        if (state.recover_cooldown >= SLIDE_COOLDOWN) {
+            state.slide_recover = false;
+            state.recover_cooldown = 0;
         }
+
+        state.motion_hist.push_back(motion_frame.clone());
+        if (state.motion_hist.size() > MOTION_HIST_FRAMES)
+            state.motion_hist.pop_front();
+
+        return;
     }
 
-    state.prev_frame = curr_frame.clone();
+    cv::Mat cdiff, diff, thresh;
+    cv::absdiff(motion_frame, state.motion_hist.front(), cdiff);
+    std::vector<cv::Mat> ch(3);
+    cv::split(cdiff, ch);
+    diff = cv::max(ch[0], cv::max(ch[1], ch[2]));
+    cv::threshold(diff, thresh, MOTION_THRESH_INTENSITY, 255,
+                  cv::THRESH_BINARY);
+
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
+
+    int changed = cv::countNonZero(thresh);
+
+    bool is_sliding = changed > SLIDE_TRIGGER_PXS;
+    bool is_moving = !is_sliding && changed > MOTION_TRIGGER_PXS;
+
+    display_frame.setTo(cv::Scalar(0, 255, 255), thresh);
+
+    auto since_save = std::chrono::steady_clock::now() - state.last_save_time;
+
+
+
+    auto since_save = std::chrono::steady_clock::now() - state.last_save_time;
+    if (since_save > SNAPSHOT_INTERVAL) {
+        saveIfChanged(content_frame, state, track_id, "periodic");
+        state.last_save_time = std::chrono::steady_clock::now();
+    }
+
+    if (is_sliding) {
+
+        size_t idx = state.history_buff.size() > SLIDE_LOOKBACK_FRAMES
+                         ? state.history_buff.size() - 1 - SLIDE_LOOKBACK_FRAMES
+                         : 0;
+        const cv::Mat &old_frame = state.history_buff[idx];
+
+        saveIfChanged(old_frame, state, track_id, "slide");
+
+        state.slide_recover = true;
+        state.recover_cooldown = 0;
+        state.still_cnt = 0;
+        state.was_active = false;
+    } else if (is_moving) {
+        state.still_cnt = 0;
+        state.was_active = true;
+    } else if (state.was_active && ++state.still_cnt >= STILL_COOLDOWN) {
+        saveIfChanged(content_frame, state, track_id, "still");
+        state.still_cnt = 0;
+        state.was_active = false;
+    }
+
+    state.motion_hist.push_back(motion_frame.clone());
+    if (state.motion_hist.size() > MOTION_HIST_FRAMES)
+        state.motion_hist.pop_front();
 }
 
 void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
@@ -156,13 +237,17 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
 
             // pixel math
             cv::Mat final = enhanceChalkboard(dewarped, clahe);
-            evaluateAndExtract(final, track_states[i], i);
+
+            cv::Mat display;
+            cv::cvtColor(final, display, cv::COLOR_GRAY2BGR);
+
+            evaluateAndExtract(dewarped, final, track_states[i], i, display);
 
             // debug display
             if (SHOW_RAW)
                 cv::imshow(std::format("KREDA column {} (raw)", i + 1),
                            dewarped);
-            cv::imshow(std::format("KREDA column {}", i + 1), final);
+            cv::imshow(std::format("KREDA column {}", i + 1), display);
         }
 
         cv::pollKey();
