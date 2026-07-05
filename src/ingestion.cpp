@@ -316,6 +316,13 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
 
     consumeLoop(shared, warp_matrices, track_states, clahe, is_running);
 
+    // end of run flush
+    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
+        TrackState &state = track_states[i];
+        if (!state.history_buff.empty() && !state.last_saved_frame.empty())
+            saveIfChanged(state.history_buff.back(), state, i, "final");
+    }
+
     // cleanup
     is_running = false;
     shared.wake();
