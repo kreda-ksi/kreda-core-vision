@@ -11,4 +11,6 @@ namespace kreda {
 void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
                       const std::array<cv::Mat, COLUMN_CNT> &warp_matrices);
 
+bool openStream(cv::VideoCapture &cap, const std::string &url);
+
 } // namespace kreda

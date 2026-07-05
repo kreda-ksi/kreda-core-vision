@@ -20,15 +20,12 @@ int main(int argc, char **argv) {
 
     std::cout << std::format("Connecting to: {}", rtsp_url) << std::endl;
 
-    cv::VideoCapture cap(rtsp_url, cv::CAP_FFMPEG);
-    if (!cap.isOpened()) {
+    cv::VideoCapture cap;
+    if (!openStream(cap, rtsp_url)) {
         std::cerr << "Could not open the RTSP stream. Is mediamtx running?"
                   << std::endl;
         return ERTSP;
     }
-
-    // set buffer size to one frame to prevent any delay buildup
-    cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
 
     std::array<cv::Mat, COLUMN_CNT> warp_matrices = runCalibration(cap);
     runIngestionLoop(cap, rtsp_url, warp_matrices);

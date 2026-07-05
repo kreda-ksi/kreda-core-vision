@@ -8,7 +8,6 @@
 #include <deque>
 #include <filesystem>
 #include <format>
-#include <iostream>
 #include <mutex>
 #include <thread>
 
@@ -28,6 +27,13 @@ struct TrackState {
     int save_flash = 0;
     bool was_active = false;
 };
+
+bool openStream(cv::VideoCapture &cap, const std::string &url) {
+    cap.release();
+    cap.open(url, cv::CAP_FFMPEG);
+    cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
+    return cap.isOpened();
+}
 
 static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
                                  const cv::Ptr<cv::CLAHE> &clahe) {
@@ -226,9 +232,7 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
                         TrackLogger::instance().event(0, "STREAM_RECONNECT", 0);
 
                     // reboot the connection
-                    cap.release();
-                    cap.open(rtsp_url, cv::CAP_FFMPEG);
-                    cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
+                    openStream(cap, rtsp_url);
 
                     retry_cnt = 0;
 
