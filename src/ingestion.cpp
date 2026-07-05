@@ -123,11 +123,6 @@ static bool updateSlideRecovery(TrackState &state, const cv::Mat &motion_frame,
     return false;
 }
 
-// evaluates if a frame should be saved based on verification.
-// the verification process is as follows:
-// 1. on image difference (motion detection) track goes to an 'alert' state,
-// 2. if after the 'alert' state cools down there's a visible difference on the
-// chalkboard, then proceed to save the frame. otherwise, just continue.
 static void evaluateAndExtract(const cv::Mat &motion_frame,
                                const cv::Mat &content_frame, TrackState &state,
                                unsigned int track_id, cv::Mat &display_frame) {
