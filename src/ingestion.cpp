@@ -208,6 +208,28 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
         state.motion_hist.pop_front();
 }
 
+static void processColumn(const cv::Mat &frame, const cv::Mat &warp,
+                          TrackState &state, unsigned int track_id,
+                          const cv::Ptr<cv::CLAHE> &clahe) {
+    cv::Mat dewarped;
+
+    // homography
+    cv::warpPerspective(frame, dewarped, warp, cv::Size(OUT_WID, OUT_HEI));
+
+    // pixel math
+    cv::Mat final = enhanceChalkboard(dewarped, clahe);
+
+    cv::Mat display;
+    cv::cvtColor(final, display, cv::COLOR_GRAY2BGR);
+
+    evaluateAndExtract(dewarped, final, state, track_id, display);
+
+    // debug display
+    if (SHOW_RAW)
+        cv::imshow(std::format("KREDA column {} (raw)", track_id), dewarped);
+    cv::imshow(std::format("KREDA column {}", track_id), display);
+}
+
 void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
                       const std::array<cv::Mat, COLUMN_CNT> &warp_matrices) {
     std::filesystem::create_directory(OUT_DIR);
@@ -272,29 +294,10 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             continue;
         }
 
-        for (unsigned int i{}; i < COLUMN_CNT; ++i) {
-            cv::Mat dewarped;
-
-            // homography
-            cv::warpPerspective(local_frame, dewarped, warp_matrices[i],
-                                cv::Size(OUT_WID, OUT_HEI));
-
-            // pixel math
-            cv::Mat final = enhanceChalkboard(dewarped, clahe);
-
-            cv::Mat display;
-            cv::cvtColor(final, display, cv::COLOR_GRAY2BGR);
-
-            evaluateAndExtract(dewarped, final, track_states[i], i, display);
-
-            // debug display
-            if (SHOW_RAW)
-                cv::imshow(std::format("KREDA column {} (raw)", i + 1),
-                           dewarped);
-            cv::imshow(std::format("KREDA column {}", i + 1), display);
-        }
-
         cv::pollKey();
+        for (unsigned int i{}; i < COLUMN_CNT; ++i)
+            processColumn(local_frame, warp_matrices[i], track_states[i], i,
+                          clahe);
 
         if (cv::pollKey() == 'q')
             is_running = false;
