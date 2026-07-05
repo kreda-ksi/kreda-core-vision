@@ -58,6 +58,25 @@ static void saveCalibration(const std::array<cv::Mat, COLUMN_CNT> &warps,
     fs << "src_points" << src_points;
 }
 
+static std::array<cv::Mat, COLUMN_CNT>
+computeWarps(const std::vector<cv::Point2f> &src_points) {
+    std::vector<cv::Point2f> dst_points = {
+        cv::Point2f(0, 0),
+        cv::Point2f(OUT_WID, 0),
+        cv::Point2f(OUT_WID, OUT_HEI),
+        cv::Point2f(0, OUT_HEI),
+    };
+
+    std::array<cv::Mat, COLUMN_CNT> warps;
+    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
+        std::vector<cv::Point2f> track_src(src_points.begin() + i * 4,
+                                           src_points.begin() + (i + 1) * 4);
+        warps[i] = cv::getPerspectiveTransform(track_src, dst_points);
+    }
+
+    return warps;
+}
+
 std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
     std::array<cv::Mat, COLUMN_CNT> warps;
 
@@ -103,18 +122,7 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
     }
     cv::destroyWindow("Calibration");
 
-    std::vector<cv::Point2f> dst_points = {
-        cv::Point2f(0, 0),
-        cv::Point2f(OUT_WID, 0),
-        cv::Point2f(OUT_WID, OUT_HEI),
-        cv::Point2f(0, OUT_HEI),
-    };
-
-    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
-        std::vector<cv::Point2f> track_src(src_points.begin() + i * 4,
-                                           src_points.begin() + (i + 1) * 4);
-        warps[i] = cv::getPerspectiveTransform(track_src, dst_points);
-    }
+    warps = computeWarps(src_points);
 
     saveCalibration(warps, src_points);
 
