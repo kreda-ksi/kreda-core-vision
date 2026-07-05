@@ -294,7 +294,6 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
             continue;
         }
 
-        cv::pollKey();
         for (unsigned int i{}; i < COLUMN_CNT; ++i)
             processColumn(local_frame, warp_matrices[i], track_states[i], i,
                           clahe);
