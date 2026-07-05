@@ -26,31 +26,29 @@ static void onMouseClick(int event, int x, int y, int flags, void *userdata) {
     }
 }
 
+static bool loadCalibration(std::array<cv::Mat, COLUMN_CNT> &warps) {
+    cv::FileStorage fs(CALIB_FILE, cv::FileStorage::READ);
+    if (!fs.isOpened())
+        return false;
+
+    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
+        fs[std::format("track_{}", i)] >> warps[i];
+        if (warps[i].empty()) {
+            std::cout << "Calibration file invalid or outdated. Running manual "
+                         "calibration."
+                      << std::endl;
+            return false;
+        }
+    }
+
+    return true;
+}
+
 std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
     std::array<cv::Mat, COLUMN_CNT> warp_matrices;
 
-    cv::FileStorage fs_read(CALIB_FILE, cv::FileStorage::READ);
-    if (fs_read.isOpened()) {
-        std::cout << std::format("Found {}. Loading matrices.", CALIB_FILE)
-                  << std::endl;
-        bool succ = true;
-
-        for (unsigned int i = 0; i < COLUMN_CNT; ++i) {
-            fs_read[std::format("track_{}", i)] >> warp_matrices[i];
-            if (warp_matrices[i].empty()) {
-                succ = false;
-                break;
-            }
-        }
-
-        fs_read.release();
-
-        if (succ)
-            return warp_matrices;
-        std::cout << "Calibration file invalid or outdated. Running manual "
-                     "calibration."
-                  << std::endl;
-    }
+    if (loadCalibration(warp_matrices))
+        return warp_matrices;
 
     cv::Mat frame;
 
