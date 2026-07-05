@@ -90,9 +90,6 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
         return false;
     }
 
-    if (cv::countNonZero(cthresh) <= STATE_CHANGE_PXS)
-        return false;
-
     auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                          std::chrono::system_clock::now().time_since_epoch())
                          .count();
