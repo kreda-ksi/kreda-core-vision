@@ -31,22 +31,31 @@ struct TrackState {
 class LatestFrame {
   public:
     void push(cv::Mat &&f) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        frame_ = std::move(f);
+        {
+            std::lock_guard<std::mutex> lock(mtx_);
+            frame_ = std::move(f);
+        }
+        cv_.notify_one();
     }
 
-    bool tryTake(cv::Mat &out) {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (frame_.empty())
+    bool tryTake(cv::Mat &out, const std::atomic<bool> &running) {
+        std::unique_lock<std::mutex> lock(mtx_);
+        if (!cv_.wait_for(lock, std::chrono::milliseconds(100),
+                          [&] { return !frame_.empty() || !running; }))
+            return false; // timeout, no frame and no caller loops
+        if (!running && frame_.empty())
             return false;
 
         out = std::move(frame_);
         return true;
     }
 
+    void wake() { cv_.notify_all(); }
+
   private:
     cv::Mat frame_;
     std::mutex mtx_;
+    std::condition_variable cv_;
 };
 
 bool openStream(cv::VideoCapture &cap, const std::string &url) {
@@ -280,10 +289,8 @@ static void consumeLoop(LatestFrame &shared,
     cv::Mat local_frame;
 
     while (is_running.load(std::memory_order_relaxed)) {
-        if (!shared.tryTake(local_frame)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            continue;
-        }
+        if (!shared.tryTake(local_frame, is_running))
+            break;
 
         for (unsigned int i{}; i < COLUMN_CNT; ++i)
             processColumn(local_frame, warp_matrices[i], track_states[i], i,
@@ -310,6 +317,8 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
     consumeLoop(shared, warp_matrices, track_states, clahe, is_running);
 
     // cleanup
+    is_running = false;
+    shared.wake();
     if (capture_thrd.joinable())
         capture_thrd.join();
 }
