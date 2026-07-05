@@ -123,6 +123,34 @@ static bool updateSlideRecovery(TrackState &state, const cv::Mat &motion_frame,
     return false;
 }
 
+static void updateActivityState(const cv::Mat &content_frame, TrackState &state,
+                                unsigned int track_id, bool is_sliding,
+                                bool is_moving, int changed) {
+    if (is_sliding) {
+        if (LOG_ENABLED)
+            TrackLogger::instance().event(track_id, "SLIDE_DETECTED", changed);
+
+        size_t idx = state.history_buff.size() > SLIDE_LOOKBACK_FRAMES
+                         ? state.history_buff.size() - 1 - SLIDE_LOOKBACK_FRAMES
+                         : 0;
+        const cv::Mat &old_frame = state.history_buff[idx];
+
+        saveIfChanged(old_frame, state, track_id, "slide");
+
+        state.slide_recover = true;
+        state.recover_cooldown = 0;
+        state.still_cnt = 0;
+        state.was_active = false;
+    } else if (is_moving) {
+        state.still_cnt = 0;
+        state.was_active = true;
+    } else if (state.was_active && ++state.still_cnt >= STILL_COOLDOWN) {
+        saveIfChanged(content_frame, state, track_id, "still");
+        state.still_cnt = 0;
+        state.was_active = false;
+    }
+}
+
 static void evaluateAndExtract(const cv::Mat &motion_frame,
                                const cv::Mat &content_frame, TrackState &state,
                                unsigned int track_id, cv::Mat &display_frame) {
@@ -166,29 +194,8 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
         state.last_save_time = std::chrono::steady_clock::now();
     }
 
-    if (is_sliding) {
-        if (LOG_ENABLED)
-            TrackLogger::instance().event(track_id, "SLIDE_DETECTED", changed);
-
-        size_t idx = state.history_buff.size() > SLIDE_LOOKBACK_FRAMES
-                         ? state.history_buff.size() - 1 - SLIDE_LOOKBACK_FRAMES
-                         : 0;
-        const cv::Mat &old_frame = state.history_buff[idx];
-
-        saveIfChanged(old_frame, state, track_id, "slide");
-
-        state.slide_recover = true;
-        state.recover_cooldown = 0;
-        state.still_cnt = 0;
-        state.was_active = false;
-    } else if (is_moving) {
-        state.still_cnt = 0;
-        state.was_active = true;
-    } else if (state.was_active && ++state.still_cnt >= STILL_COOLDOWN) {
-        saveIfChanged(content_frame, state, track_id, "still");
-        state.still_cnt = 0;
-        state.was_active = false;
-    }
+    updateActivityState(content_frame, state, track_id, is_sliding, is_moving,
+                        changed);
 
     state.motion_hist.push_back(motion_frame.clone());
     if (state.motion_hist.size() > MOTION_HIST_FRAMES)
