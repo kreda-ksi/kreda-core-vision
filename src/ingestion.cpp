@@ -102,6 +102,27 @@ static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame,
     return cv::countNonZero(thresh);
 }
 
+static bool updateSlideRecovery(TrackState &state, const cv::Mat &motion_frame,
+                                unsigned int track_id) {
+    if (state.slide_recover) {
+        state.recover_cooldown++;
+        if (state.recover_cooldown >= SLIDE_COOLDOWN) {
+            state.slide_recover = false;
+            state.recover_cooldown = 0;
+            if (LOG_ENABLED)
+                TrackLogger::instance().event(track_id, "RECOVERY_DONE");
+        }
+
+        state.motion_hist.push_back(motion_frame.clone());
+        if (state.motion_hist.size() > MOTION_HIST_FRAMES)
+            state.motion_hist.pop_front();
+
+        return true;
+    }
+
+    return false;
+}
+
 // evaluates if a frame should be saved based on verification.
 // the verification process is as follows:
 // 1. on image difference (motion detection) track goes to an 'alert' state,
@@ -121,21 +142,8 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
         return;
     }
 
-    if (state.slide_recover) {
-        state.recover_cooldown++;
-        if (state.recover_cooldown >= SLIDE_COOLDOWN) {
-            state.slide_recover = false;
-            state.recover_cooldown = 0;
-            if (LOG_ENABLED)
-                TrackLogger::instance().event(track_id, "RECOVERY_DONE");
-        }
-
-        state.motion_hist.push_back(motion_frame.clone());
-        if (state.motion_hist.size() > MOTION_HIST_FRAMES)
-            state.motion_hist.pop_front();
-
+    if (updateSlideRecovery(state, motion_frame, track_id))
         return;
-    }
 
     int changed =
         detectMotion(motion_frame, state.motion_hist.front(), display_frame);
