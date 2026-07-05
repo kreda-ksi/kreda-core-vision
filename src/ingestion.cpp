@@ -230,66 +230,52 @@ static void processColumn(const cv::Mat &frame, const cv::Mat &warp,
     cv::imshow(std::format("KREDA column {}", track_id), display);
 }
 
-void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
-                      const std::array<cv::Mat, COLUMN_CNT> &warp_matrices) {
-    std::filesystem::create_directory(OUT_DIR);
+static void captureLoop(cv::VideoCapture &cap, const std::string &url,
+                        cv::Mat &shared_frame, std::mutex &frame_mtx,
+                        std::atomic<bool> &is_running) {
+    cv::Mat temp_frame;
+    unsigned int retry_cnt = 0;
 
-    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0);
-    std::array<TrackState, COLUMN_CNT> track_states; // holds state for all cols
-
-    std::mutex frame_mtx;
-    cv::Mat shared_frame;
-    std::atomic<bool> is_running{true};
-
-    // network i/o
-    std::thread capture_thrd([&]() {
-        cv::Mat temp_frame;
-        unsigned int retry_cnt = 0;
-
-        while (is_running) {
-            if (!cap.read(temp_frame) || temp_frame.empty()) {
-                retry_cnt++;
-                if (retry_cnt >= MAX_RETRIES) {
-                    if (LOG_ENABLED)
-                        TrackLogger::instance().event(0, "STREAM_RECONNECT", 0);
-
-                    // reboot the connection
-                    openStream(cap, rtsp_url);
-
-                    retry_cnt = 0;
-
-                    // wait a second for it to wake up
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-                continue;
+    while (is_running.load(std::memory_order_relaxed)) {
+        if (!cap.read(temp_frame) || temp_frame.empty()) {
+            retry_cnt++;
+            if (retry_cnt >= MAX_RETRIES) {
+                if (LOG_ENABLED)
+                    TrackLogger::instance().event(0, "STREAM_RECONNECT", 0);
+                openStream(cap, url);
+                retry_cnt = 0;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
             }
-
-            retry_cnt = 0;
-
-            // lock long enough to drop the new frame in
-            {
-                std::lock_guard<std::mutex> lock(frame_mtx);
-                shared_frame = temp_frame.clone();
-            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
         }
-    });
 
+        retry_cnt = 0;
+        {
+            std::lock_guard<std::mutex> lock(frame_mtx);
+            shared_frame = temp_frame.clone();
+        }
+    }
+}
+
+static void consumeLoop(cv::Mat &shared_frame, std::mutex &frame_mtx,
+                        const std::array<cv::Mat, COLUMN_CNT> &warp_matrices,
+                        std::array<TrackState, COLUMN_CNT> &track_states,
+                        const cv::Ptr<cv::CLAHE> &clahe,
+                        std::atomic<bool> &is_running) {
     cv::Mat local_frame;
 
-    // cpu math and disk i/o
-    while (is_running) {
+    while (is_running.load(std::memory_order_relaxed)) {
         bool have_frame = false;
         {
             std::lock_guard<std::mutex> lock(frame_mtx);
             if (!shared_frame.empty()) {
                 local_frame = shared_frame.clone();
-                shared_frame.release(); // to not process the same frame twice
+                shared_frame.release();
                 have_frame = true;
             }
         }
         if (!have_frame) {
-            // yield cpu if no frame is ready yet
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
@@ -301,6 +287,25 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
         if (cv::pollKey() == 'q')
             is_running = false;
     }
+}
+
+void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
+                      const std::array<cv::Mat, COLUMN_CNT> &warp_matrices) {
+    std::filesystem::create_directory(OUT_DIR);
+
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0);
+    std::array<TrackState, COLUMN_CNT> track_states; // holds state for all cols
+
+    std::mutex frame_mtx;
+    cv::Mat shared_frame;
+    std::atomic<bool> is_running{true};
+
+    std::thread capture_thrd(captureLoop, std::ref(cap), std::cref(rtsp_url),
+                             std::ref(shared_frame), std::ref(frame_mtx),
+                             std::ref(is_running));
+
+    consumeLoop(shared_frame, frame_mtx, warp_matrices, track_states, clahe,
+                is_running);
 
     // cleanup
     if (capture_thrd.joinable())
