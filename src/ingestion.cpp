@@ -84,6 +84,21 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
     return true;
 }
 
+static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame) {
+    cv::Mat cdiff, diff, thresh;
+    cv::absdiff(motion_frame, ref_frame, cdiff);
+    std::vector<cv::Mat> ch(3);
+    cv::split(cdiff, ch);
+    diff = cv::max(ch[0], cv::max(ch[1], ch[2]));
+    cv::threshold(diff, thresh, MOTION_THRESH_INTENSITY, 255,
+                  cv::THRESH_BINARY);
+
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+    cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
+
+    return cv::countNonZero(thresh);
+}
+
 // evaluates if a frame should be saved based on verification.
 // the verification process is as follows:
 // 1. on image difference (motion detection) track goes to an 'alert' state,
@@ -119,18 +134,7 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
         return;
     }
 
-    cv::Mat cdiff, diff, thresh;
-    cv::absdiff(motion_frame, state.motion_hist.front(), cdiff);
-    std::vector<cv::Mat> ch(3);
-    cv::split(cdiff, ch);
-    diff = cv::max(ch[0], cv::max(ch[1], ch[2]));
-    cv::threshold(diff, thresh, MOTION_THRESH_INTENSITY, 255,
-                  cv::THRESH_BINARY);
-
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-    cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
-
-    int changed = cv::countNonZero(thresh);
+    int changed = detectMotion(motion_frame, state.motion_hist.front());
 
     bool is_sliding = changed > SLIDE_TRIGGER_PXS;
     bool is_moving = !is_sliding && changed > MOTION_TRIGGER_PXS;
