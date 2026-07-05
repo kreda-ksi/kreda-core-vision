@@ -289,12 +289,12 @@ static void consumeLoop(LatestFrame &shared,
     cv::Mat local_frame;
 
     while (is_running.load(std::memory_order_relaxed)) {
-        if (!shared.tryTake(local_frame, is_running))
-            break;
+        bool have_frame = shared.tryTake(local_frame, is_running);
 
-        for (unsigned int i{}; i < COLUMN_CNT; ++i)
-            processColumn(local_frame, warp_matrices[i], track_states[i], i,
-                          clahe);
+        if (have_frame)
+            for (unsigned int i{}; i < COLUMN_CNT; ++i)
+                processColumn(local_frame, warp_matrices[i], track_states[i], i,
+                              clahe);
 
         if (cv::pollKey() == 'q')
             is_running = false;
