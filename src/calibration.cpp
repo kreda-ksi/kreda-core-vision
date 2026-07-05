@@ -58,6 +58,21 @@ static void saveCalibration(const std::array<cv::Mat, COLUMN_CNT> &warps,
     fs << "src_points" << src_points;
 }
 
+static void drawCalibrationOverlay(cv::Mat &display,
+                                   const std::vector<cv::Point2f> &points) {
+    for (std::size_t i{}; i < points.size(); ++i) {
+        cv::circle(display, points[i], 5, cv::Scalar(0, 0, 255), -1);
+
+        auto mod_i = i % 4;
+        if (mod_i > 0)
+            cv::line(display, points[i - 1], points[i], cv::Scalar(0, 255, 0),
+                     2);
+        if (mod_i == 3)
+            cv::line(display, points[i], points[i - 3], cv::Scalar(0, 255, 0),
+                     2);
+    }
+}
+
 static std::array<cv::Mat, COLUMN_CNT>
 computeWarps(const std::vector<cv::Point2f> &src_points) {
     std::vector<cv::Point2f> dst_points = {
@@ -97,21 +112,9 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
     cv::setMouseCallback("Calibration", onMouseClick, &src_points);
 
     while (true) {
-        cv::Mat display_frame = frame.clone();
-        for (std::size_t i{}; i < src_points.size(); ++i) {
-            cv::circle(display_frame, src_points[i], 5, cv::Scalar(0, 0, 255),
-                       -1);
-
-            auto mod_i = i % 4;
-            if (mod_i > 0)
-                cv::line(display_frame, src_points[i - 1], src_points[i],
-                         cv::Scalar(0, 255, 0), 2);
-            if (mod_i == 3)
-                cv::line(display_frame, src_points[i], src_points[i - 3],
-                         cv::Scalar(0, 255, 0), 2);
-        }
-
-        cv::imshow("Calibration", display_frame);
+        cv::Mat display = frame.clone();
+        drawCalibrationOverlay(display, src_points);
+        cv::imshow("Calibration", display);
 
         if (src_points.size() == 8) {
             cv::waitKey(1000);
