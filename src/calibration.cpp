@@ -73,6 +73,30 @@ static void drawCalibrationOverlay(cv::Mat &display,
     }
 }
 
+static std::vector<cv::Point2f>
+collectPointsInteractively(const cv::Mat &frame) {
+    std::vector<cv::Point2f> src_points;
+    src_points.reserve(POINTS_CNT);
+
+    cv::namedWindow("Calibration", cv::WINDOW_NORMAL);
+    cv::setMouseCallback("Calibration", onMouseClick, &src_points);
+
+    while (true) {
+        cv::Mat display = frame.clone();
+        drawCalibrationOverlay(display, src_points);
+        cv::imshow("Calibration", display);
+
+        if (src_points.size() == POINTS_CNT) {
+            cv::waitKey(1000);
+            break;
+        }
+        cv::waitKey(30);
+    }
+
+    cv::destroyWindow("Calibration");
+    return src_points;
+}
+
 static std::array<cv::Mat, COLUMN_CNT>
 computeWarps(const std::vector<cv::Point2f> &src_points) {
     std::vector<cv::Point2f> dst_points = {
@@ -107,26 +131,9 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
         exit(ECAL);
     }
 
-    std::vector<cv::Point2f> src_points;
-    cv::namedWindow("Calibration", cv::WINDOW_NORMAL);
-    cv::setMouseCallback("Calibration", onMouseClick, &src_points);
 
-    while (true) {
-        cv::Mat display = frame.clone();
-        drawCalibrationOverlay(display, src_points);
-        cv::imshow("Calibration", display);
-
-        if (src_points.size() == 8) {
-            cv::waitKey(1000);
-            break;
-        }
-
-        cv::waitKey(30);
-    }
-    cv::destroyWindow("Calibration");
-
+    auto src_points = collectPointsInteractively(frame);
     warps = computeWarps(src_points);
-
     saveCalibration(warps, src_points);
 
     return warps;
