@@ -212,7 +212,7 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
     cv::Mat local_frame;
 
     // cpu math and disk i/o
-    while (true) {
+    while (is_running) {
         bool have_frame = false;
         {
             std::lock_guard<std::mutex> lock(frame_mtx);
@@ -251,6 +251,9 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
         }
 
         cv::pollKey();
+
+        if (cv::pollKey() == 'q')
+            is_running = false;
     }
 
     // cleanup
