@@ -84,7 +84,8 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
     return true;
 }
 
-static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame) {
+static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame,
+                        cv::Mat &display_frame) {
     cv::Mat cdiff, diff, thresh;
     cv::absdiff(motion_frame, ref_frame, cdiff);
     std::vector<cv::Mat> ch(3);
@@ -95,6 +96,8 @@ static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame) {
 
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
+
+    display_frame.setTo(cv::Scalar(0, 255, 255), thresh);
 
     return cv::countNonZero(thresh);
 }
@@ -134,12 +137,11 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
         return;
     }
 
-    int changed = detectMotion(motion_frame, state.motion_hist.front());
+    int changed =
+        detectMotion(motion_frame, state.motion_hist.front(), display_frame);
 
     bool is_sliding = changed > SLIDE_TRIGGER_PXS;
     bool is_moving = !is_sliding && changed > MOTION_TRIGGER_PXS;
-
-    display_frame.setTo(cv::Scalar(0, 255, 255), thresh);
 
     FrameTelemetry t{track_id,
                      changed,
