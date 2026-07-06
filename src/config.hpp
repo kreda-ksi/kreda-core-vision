@@ -44,4 +44,11 @@ inline constexpr std::chrono::seconds SNAPSHOT_INTERVAL{20};
 inline constexpr const char *CALIB_FILE = "calibration.xml";
 inline constexpr const char *OUT_DIR = "staging";
 inline constexpr const char *LOG_FILE = "run.csv";
+
+// calibration
+inline constexpr const char *REF_FRAME_FILE = "calibration_ref.png";
+inline constexpr int DRIFT_MIN_INLIERS = 15;
+inline constexpr double DRIFT_MAX_SCALE_DEV = 0.10; // warn past 10% zoom drift
+inline constexpr double DRIFT_IDENTITY_EPS = 2.0;   // px epsilon
+
 } // namespace kreda
