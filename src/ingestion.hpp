@@ -8,7 +8,8 @@
 namespace kreda {
 
 // runs the infinite ingestion -> dewarping -> processing loop
-void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
+void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
+                      const std::string &rtsp_url,
                       const std::array<cv::Mat, COLUMN_CNT> &warp_matrices);
 
 bool openStream(cv::VideoCapture &cap, const std::string &url);

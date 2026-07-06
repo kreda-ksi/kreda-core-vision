@@ -10,8 +10,8 @@ namespace kreda {
 
 class TrackLogger {
   public:
-    static TrackLogger &instance() {
-        static TrackLogger logger;
+    static TrackLogger &instance(const RunConfig &cfg) {
+        static TrackLogger logger(cfg);
         return logger;
     }
 
@@ -37,8 +37,9 @@ class TrackLogger {
     }
 
   private:
-    TrackLogger() : start_(std::chrono::steady_clock::now()) {
-        file_.open(LOG_FILE, std::ios::out | std::ios::trunc);
+    TrackLogger(const RunConfig &cfg)
+        : start_(std::chrono::steady_clock::now()) {
+        file_.open(cfg.log_file, std::ios::out | std::ios::trunc);
         ok_ = file_.is_open();
         if (ok_)
             file_ << "t_ms,track,type,changed_or_what,moving_or_detail,sliding,"

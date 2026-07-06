@@ -2,6 +2,20 @@
 #include <chrono>
 
 namespace kreda {
+
+struct RunConfig {
+    std::string rtsp_url;
+    std::string calib_file = "calibration.xml";
+    std::string out_dir = "staging";
+    std::string log_file = "run.csv";
+    std::string ref_file = "calibration_ref.png";
+    bool show_gui = true;
+    bool show_raw = true;
+    bool log_enabled = true;
+    bool force_recalibrate = false;
+    std::chrono::minutes duration{0}; // 0 => run until q
+};
+
 // error codes
 inline constexpr int EARG = 1;
 inline constexpr int ERTSP = 2;
@@ -15,10 +29,6 @@ inline constexpr float OUT_HEI = 720.0f;
 inline constexpr int TOTAL_AREA =
     OUT_WID * OUT_HEI; // only used internally to calc frame area% consts
 inline constexpr unsigned int MAX_RETRIES = 30;
-
-inline constexpr bool SHOW_RAW = false;
-inline constexpr bool LOG_ENABLED = true;
-inline constexpr bool SHOW_GUI = true;
 
 inline constexpr int MOTION_THRESH_INTENSITY =
     30; // px intens diff to count as 'changed'
@@ -40,13 +50,7 @@ inline constexpr unsigned int SLIDE_LOOKBACK_FRAMES = 7;
 
 inline constexpr std::chrono::seconds SNAPSHOT_INTERVAL{20};
 
-// i/o
-inline constexpr const char *CALIB_FILE = "calibration.xml";
-inline constexpr const char *OUT_DIR = "staging";
-inline constexpr const char *LOG_FILE = "run.csv";
-
 // calibration
-inline constexpr const char *REF_FRAME_FILE = "calibration_ref.png";
 inline constexpr int DRIFT_MIN_INLIERS = 15;
 inline constexpr double DRIFT_MAX_SCALE_DEV = 0.10; // warn past 10% zoom drift
 inline constexpr double DRIFT_IDENTITY_EPS = 2.0;   // px epsilon

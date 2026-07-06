@@ -7,8 +7,8 @@
 
 namespace kreda {
 
-inline void drawHud(cv::Mat &display, const FrameTelemetry &t) {
-    cv::rectangle(display, cv::Point(0, 0), cv::Point(display.cols, 58),
+inline void drawHud(cv::Mat *display, const FrameTelemetry &t) {
+    cv::rectangle(*display, cv::Point(0, 0), cv::Point(display->cols, 58),
                   cv::Scalar(0, 0, 0), cv::FILLED);
 
     std::string phase;
@@ -28,27 +28,27 @@ inline void drawHud(cv::Mat &display, const FrameTelemetry &t) {
         col = cv::Scalar(0, 255, 0);
     }
 
-    cv::putText(display, phase, cv::Point(10, 22), cv::FONT_HERSHEY_SIMPLEX,
+    cv::putText(*display, phase, cv::Point(10, 22), cv::FONT_HERSHEY_SIMPLEX,
                 0.6, col, 2);
 
-    cv::putText(display,
+    cv::putText(*display,
                 std::format("changed: {} (move>{} slide>{})", t.changed,
                             MOTION_TRIGGER_PXS, SLIDE_TRIGGER_PXS),
                 cv::Point(10, 46), cv::FONT_HERSHEY_SIMPLEX, 0.5,
                 cv::Scalar(255, 255, 255), 1);
 
     int bar_w = static_cast<int>(
-        display.cols * std::min(1.0, double(t.changed) / SLIDE_TRIGGER_PXS));
-    cv::rectangle(display, cv::Point(0, 54), cv::Point(bar_w, 58), col,
+        display->cols * std::min(1.0, double(t.changed) / SLIDE_TRIGGER_PXS));
+    cv::rectangle(*display, cv::Point(0, 54), cv::Point(bar_w, 58), col,
                   cv::FILLED);
 
     int tick_x = static_cast<int>(
-        display.cols * (double(MOTION_TRIGGER_PXS) / SLIDE_TRIGGER_PXS));
-    cv::line(display, cv::Point(tick_x, 52), cv::Point(tick_x, 58),
+        display->cols * (double(MOTION_TRIGGER_PXS) / SLIDE_TRIGGER_PXS));
+    cv::line(*display, cv::Point(tick_x, 52), cv::Point(tick_x, 58),
              cv::Scalar(255, 255, 255), 1);
 
     if (t.save_flash > 0)
-        cv::putText(display, "SAVED", cv::Point(display.cols - 110, 22),
+        cv::putText(*display, "SAVED", cv::Point(display->cols - 110, 22),
                     cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
 }
 

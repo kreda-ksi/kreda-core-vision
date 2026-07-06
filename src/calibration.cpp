@@ -28,8 +28,9 @@ static void onMouseClick(int event, int x, int y, int flags, void *userdata) {
     }
 }
 
-static bool loadCalibration(std::array<cv::Mat, COLUMN_CNT> &warps) {
-    cv::FileStorage fs(CALIB_FILE, cv::FileStorage::READ);
+static bool loadCalibration(const RunConfig &cfg,
+                            std::array<cv::Mat, COLUMN_CNT> &warps) {
+    cv::FileStorage fs(cfg.calib_file, cv::FileStorage::READ);
     if (!fs.isOpened())
         return false;
 
@@ -46,14 +47,16 @@ static bool loadCalibration(std::array<cv::Mat, COLUMN_CNT> &warps) {
     return true;
 }
 
-static void saveCalibration(const std::array<cv::Mat, COLUMN_CNT> &warps,
+static void saveCalibration(const RunConfig &cfg,
+                            const std::array<cv::Mat, COLUMN_CNT> &warps,
                             const std::vector<cv::Point2f> &src_points,
                             const cv::Mat &ref_frame) {
-    cv::imwrite(REF_FRAME_FILE, ref_frame);
+    cv::imwrite(cfg.ref_file, ref_frame);
 
-    cv::FileStorage fs(CALIB_FILE, cv::FileStorage::WRITE);
+    cv::FileStorage fs(cfg.calib_file, cv::FileStorage::WRITE);
     if (!fs.isOpened()) {
-        std::cerr << std::format("Could not open {} for writing.", CALIB_FILE)
+        std::cerr << std::format("Could not open {} for writing.",
+                                 cfg.calib_file)
                   << std::endl;
         return;
     }
@@ -206,9 +209,10 @@ static bool validateDrift(const cv::Mat &H, const cv::Size &frame_size) {
     return true;
 }
 
-static bool applyDriftCorrection(std::array<cv::Mat, COLUMN_CNT> &warps,
+static bool applyDriftCorrection(const RunConfig &cfg,
+                                 std::array<cv::Mat, COLUMN_CNT> &warps,
                                  cv::VideoCapture &cap) {
-    cv::Mat ref = cv::imread(REF_FRAME_FILE);
+    cv::Mat ref = cv::imread(cfg.ref_file);
     if (ref.empty())
         return false;
 
@@ -228,15 +232,21 @@ static bool applyDriftCorrection(std::array<cv::Mat, COLUMN_CNT> &warps,
     return true;
 }
 
-std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
+std::array<cv::Mat, COLUMN_CNT> runCalibration(const RunConfig &cfg,
+                                               cv::VideoCapture &cap) {
     std::array<cv::Mat, COLUMN_CNT> warps;
 
-    if (loadCalibration(warps)) {
-        if (!applyDriftCorrection(warps, cap))
+    if (loadCalibration(cfg, warps) && !cfg.force_recalibrate) {
+        if (!applyDriftCorrection(cfg, warps, cap))
             std::cout
                 << "Drift correction unavailable, using stored calibration."
                 << std::endl;
         return warps;
+    }
+    if (!cfg.show_gui) {
+        std::cerr << "Headless mode requires an existing calibration file."
+                  << std::endl;
+        exit(ECAL);
     }
 
     cv::Mat frame;
@@ -248,7 +258,7 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(cv::VideoCapture &cap) {
 
     auto src_points = collectPointsInteractively(frame);
     warps = computeWarps(src_points);
-    saveCalibration(warps, src_points, frame);
+    saveCalibration(cfg, warps, src_points, frame);
     return warps;
 }
 

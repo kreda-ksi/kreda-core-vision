@@ -1,6 +1,8 @@
 #include "calibration.hpp"
 #include "config.hpp"
 #include "ingestion.hpp"
+#include "signals.hpp"
+#include <csignal>
 #include <format>
 #include <iostream>
 #include <opencv2/opencv.hpp>
@@ -8,27 +10,101 @@
 
 using namespace kreda;
 
-int main(int argc, char **argv) {
-    if (argc < 2) {
-        std::cout << std::format("Usage: ./{} <rtsp_ip> [rtsp_port]", argv[0])
-                  << std::endl;
-        return EARG;
+static inline void printUsage(const char *prog) {
+    std::cerr << std::format(
+        "Usage: {} [OPTIONS] <rtsp_url>\n"
+        "  --headless           no windows (requires existing calibration)\n"
+        "  --no-raw             suppress raw debug windows\n"
+        "  --no-log             disable CSV telemetry\n"
+        "  --calib <path>       calibration file           (default: "
+        "calibration.xml)\n"
+        "  --out <path>         output directory           (default: staging)\n"
+        "  --log-file <path>    CSV path                   (default: "
+        "kreda_run.csv)\n"
+        "  --ref-file <path>    calibration reference file (default: "
+        "calibration_ref.png)\n"
+        "  --recalibrate        force manual calibration\n"
+        "  --duration <min>     auto-stop after min minutes\n",
+        prog);
+}
+
+RunConfig parseArgs(int argc, char **argv) {
+    RunConfig cfg;
+
+    auto next_val = [&](int &i, std::string_view flag) -> const char * {
+        if (i + 1 >= argc) {
+            std::cerr << std::format("{} requires a value.\n", flag);
+            printUsage(argv[0]);
+            exit(EARG);
+        }
+
+        return argv[++i];
+    };
+
+    for (int i = 1; i < argc; ++i) {
+        std::string_view arg = argv[i];
+
+        if (arg == "--headless" || arg == "-h") {
+            cfg.show_gui = false;
+            cfg.show_raw = false;
+        } else if (arg == "--no-raw" || arg == "-nr") {
+            cfg.show_raw = false;
+        } else if (arg == "--no-log" || arg == "-nl") {
+            cfg.log_enabled = false;
+        } else if (arg == "--recalibrate" || arg == "-rc") {
+            cfg.force_recalibrate = true;
+        } else if (arg == "--calib" || arg == "-c") {
+            cfg.calib_file = next_val(i, arg);
+        } else if (arg == "--out" || arg == "-o") {
+            cfg.out_dir = next_val(i, arg);
+        } else if (arg == "--log-file" || arg == "-lf") {
+            cfg.log_file = next_val(i, arg);
+        } else if (arg == "--duration" || arg == "-d") {
+            int mins = std::atoi(next_val(i, arg));
+            if (mins <= 0) {
+                std::cerr << "--duration must be a positive integer."
+                          << std::endl;
+                exit(EARG);
+            }
+            cfg.duration = std::chrono::minutes(mins);
+        } else if (arg.starts_with("--")) {
+            std::cerr << std::format("Unknown option: {}", arg) << std::endl;
+            printUsage(argv[0]);
+            exit(EARG);
+        } else if (cfg.rtsp_url.empty()) {
+            cfg.rtsp_url = arg;
+        } else {
+            std::cerr << std::format("Unexpected argument: {}", arg)
+                      << std::endl;
+            printUsage(argv[0]);
+            exit(EARG);
+        }
     }
 
-    std::string rtsp_url =
-        std::format("rtsp://{}:{}/live", argv[1], argc > 2 ? argv[2] : "8554");
+    if (cfg.rtsp_url.empty()) {
+        std::cerr << "Missing rtsp_url." << std::endl;
+        printUsage(argv[0]);
+        exit(EARG);
+    }
 
-    std::cout << std::format("Connecting to: {}", rtsp_url) << std::endl;
+    return cfg;
+}
+
+int main(int argc, char **argv) {
+    auto cfg = parseArgs(argc, argv);
+    installSigHandlers();
+
+    std::cout << std::format("Connecting to: {}", cfg.rtsp_url) << std::endl;
 
     cv::VideoCapture cap;
-    if (!openStream(cap, rtsp_url)) {
+    if (!openStream(cap, cfg.rtsp_url)) {
         std::cerr << "Could not open the RTSP stream. Is mediamtx running?"
                   << std::endl;
         return ERTSP;
     }
 
-    std::array<cv::Mat, COLUMN_CNT> warp_matrices = runCalibration(cap);
-    runIngestionLoop(cap, rtsp_url, warp_matrices);
+    std::array<cv::Mat, COLUMN_CNT> warp_matrices = runCalibration(cfg, cap);
+    runIngestionLoop(cfg, cap, cfg.rtsp_url, warp_matrices);
 
     // cleanup
     cap.release();

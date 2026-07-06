@@ -1,6 +1,7 @@
 #include "ingestion.hpp"
 #include "config.hpp"
 #include "debug_hud.hpp"
+#include "signals.hpp"
 #include "telemetry.hpp"
 #include "track_log.hpp"
 #include <atomic>
@@ -74,8 +75,9 @@ static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
     return final;
 }
 
-static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
-                          unsigned int track_id, const char *reason) {
+static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
+                          TrackState &state, unsigned int track_id,
+                          const char *reason) {
     cv::Mat cdiff, cthresh;
     cv::absdiff(frame, state.last_saved_frame, cdiff);
     cv::threshold(cdiff, cthresh, CONTENT_THRESH_INTENSITY, 255,
@@ -92,8 +94,8 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
             chalk_pxs += a;
     }
     if (chalk_pxs <= STATE_CHANGE_PXS) {
-        if (LOG_ENABLED)
-            TrackLogger::instance().event(
+        if (cfg.log_enabled)
+            TrackLogger::instance(cfg).event(
                 track_id, std::format("SKIP_{}_{}", reason, raw_pxs),
                 chalk_pxs);
         return false;
@@ -104,11 +106,11 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
                          .count();
 
     std::string filename =
-        std::format("{}/track_{}_{}.png", OUT_DIR, track_id, timestamp);
+        std::format("{}/track_{}_{}.png", cfg.out_dir, track_id, timestamp);
     cv::imwrite(filename, frame);
 
-    if (LOG_ENABLED)
-        TrackLogger::instance().event(
+    if (cfg.log_enabled)
+        TrackLogger::instance(cfg).event(
             track_id, std::format("SAVE_{}_{}", reason, raw_pxs), chalk_pxs);
 
     state.last_save_time = std::chrono::steady_clock::now();
@@ -118,7 +120,7 @@ static bool saveIfChanged(const cv::Mat &frame, TrackState &state,
 }
 
 static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame,
-                        cv::Mat &display_frame) {
+                        cv::Mat *display_frame) {
     cv::Mat cdiff, diff, thresh;
     cv::absdiff(motion_frame, ref_frame, cdiff);
     std::vector<cv::Mat> ch(3);
@@ -130,20 +132,22 @@ static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame,
     cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
 
-    display_frame.setTo(cv::Scalar(0, 255, 255), thresh);
+    if (display_frame)
+        display_frame->setTo(cv::Scalar(0, 255, 255), thresh);
 
     return cv::countNonZero(thresh);
 }
 
-static bool updateSlideRecovery(TrackState &state, const cv::Mat &motion_frame,
+static bool updateSlideRecovery(const RunConfig &cfg, TrackState &state,
+                                const cv::Mat &motion_frame,
                                 unsigned int track_id) {
     if (state.slide_recover) {
         state.recover_cooldown++;
         if (state.recover_cooldown >= SLIDE_COOLDOWN) {
             state.slide_recover = false;
             state.recover_cooldown = 0;
-            if (LOG_ENABLED)
-                TrackLogger::instance().event(track_id, "RECOVERY_DONE");
+            if (cfg.log_enabled)
+                TrackLogger::instance(cfg).event(track_id, "RECOVERY_DONE");
         }
 
         state.motion_hist.push_back(motion_frame.clone());
@@ -156,19 +160,21 @@ static bool updateSlideRecovery(TrackState &state, const cv::Mat &motion_frame,
     return false;
 }
 
-static void updateActivityState(const cv::Mat &content_frame, TrackState &state,
+static void updateActivityState(const RunConfig &cfg,
+                                const cv::Mat &content_frame, TrackState &state,
                                 unsigned int track_id, bool is_sliding,
                                 bool is_moving, int changed) {
     if (is_sliding) {
-        if (LOG_ENABLED)
-            TrackLogger::instance().event(track_id, "SLIDE_DETECTED", changed);
+        if (cfg.log_enabled)
+            TrackLogger::instance(cfg).event(track_id, "SLIDE_DETECTED",
+                                             changed);
 
         size_t idx = state.history_buff.size() > SLIDE_LOOKBACK_FRAMES
                          ? state.history_buff.size() - 1 - SLIDE_LOOKBACK_FRAMES
                          : 0;
         const cv::Mat &old_frame = state.history_buff[idx];
 
-        saveIfChanged(old_frame, state, track_id, "slide");
+        saveIfChanged(cfg, old_frame, state, track_id, "slide");
 
         state.slide_recover = true;
         state.recover_cooldown = 0;
@@ -178,15 +184,16 @@ static void updateActivityState(const cv::Mat &content_frame, TrackState &state,
         state.still_cnt = 0;
         state.was_active = true;
     } else if (state.was_active && ++state.still_cnt >= STILL_COOLDOWN) {
-        saveIfChanged(content_frame, state, track_id, "still");
+        saveIfChanged(cfg, content_frame, state, track_id, "still");
         state.still_cnt = 0;
         state.was_active = false;
     }
 }
 
-static void evaluateAndExtract(const cv::Mat &motion_frame,
+static void evaluateAndExtract(const RunConfig &cfg,
+                               const cv::Mat &motion_frame,
                                const cv::Mat &content_frame, TrackState &state,
-                               unsigned int track_id, cv::Mat &display_frame) {
+                               unsigned int track_id, cv::Mat *display_frame) {
     // update ring buffer
     state.history_buff.push_back(content_frame.clone());
     if (state.history_buff.size() > PRE_SLIDE_BUFFER_FRAMES)
@@ -198,7 +205,7 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
         return;
     }
 
-    if (updateSlideRecovery(state, motion_frame, track_id))
+    if (updateSlideRecovery(cfg, state, motion_frame, track_id))
         return;
 
     int changed =
@@ -216,27 +223,28 @@ static void evaluateAndExtract(const cv::Mat &motion_frame,
                      state.recover_cooldown,
                      state.save_flash--};
 
-    if (LOG_ENABLED)
-        TrackLogger::instance().frame(t);
-    if (SHOW_GUI)
+    if (cfg.log_enabled)
+        TrackLogger::instance(cfg).frame(t);
+    if (display_frame)
         drawHud(display_frame, t);
 
     auto since_save = std::chrono::steady_clock::now() - state.last_save_time;
     if (since_save > SNAPSHOT_INTERVAL) {
-        saveIfChanged(content_frame, state, track_id, "periodic");
+        saveIfChanged(cfg, content_frame, state, track_id, "periodic");
         state.last_save_time = std::chrono::steady_clock::now();
     }
 
-    updateActivityState(content_frame, state, track_id, is_sliding, is_moving,
-                        changed);
+    updateActivityState(cfg, content_frame, state, track_id, is_sliding,
+                        is_moving, changed);
 
     state.motion_hist.push_back(motion_frame.clone());
     if (state.motion_hist.size() > MOTION_HIST_FRAMES)
         state.motion_hist.pop_front();
 }
 
-static void processColumn(const cv::Mat &frame, const cv::Mat &warp,
-                          TrackState &state, unsigned int track_id,
+static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
+                          const cv::Mat &warp, TrackState &state,
+                          unsigned int track_id,
                           const cv::Ptr<cv::CLAHE> &clahe) {
     cv::Mat dewarped;
 
@@ -246,19 +254,23 @@ static void processColumn(const cv::Mat &frame, const cv::Mat &warp,
     // pixel math
     cv::Mat final = enhanceChalkboard(dewarped, clahe);
 
+    if (!cfg.show_gui) {
+        evaluateAndExtract(cfg, dewarped, final, state, track_id, nullptr);
+    }
+
     cv::Mat display;
     cv::cvtColor(final, display, cv::COLOR_GRAY2BGR);
-
-    evaluateAndExtract(dewarped, final, state, track_id, display);
+    evaluateAndExtract(cfg, dewarped, final, state, track_id, &display);
 
     // debug display
-    if (SHOW_RAW)
+    if (cfg.show_raw)
         cv::imshow(std::format("KREDA column {} (raw)", track_id), dewarped);
     cv::imshow(std::format("KREDA column {}", track_id), display);
 }
 
-static void captureLoop(cv::VideoCapture &cap, const std::string &url,
-                        LatestFrame &shared, std::atomic<bool> &is_running) {
+static void captureLoop(const RunConfig &cfg, cv::VideoCapture &cap,
+                        const std::string &url, LatestFrame &shared,
+                        std::atomic<bool> &is_running) {
     cv::Mat temp_frame;
     unsigned int retry_cnt = 0;
 
@@ -266,8 +278,8 @@ static void captureLoop(cv::VideoCapture &cap, const std::string &url,
         if (!cap.read(temp_frame) || temp_frame.empty()) {
             retry_cnt++;
             if (retry_cnt >= MAX_RETRIES) {
-                if (LOG_ENABLED)
-                    TrackLogger::instance().event(0, "STREAM_RECONNECT", 0);
+                if (cfg.log_enabled)
+                    TrackLogger::instance(cfg).event(0, "STREAM_RECONNECT", 0);
                 openStream(cap, url);
                 retry_cnt = 0;
                 std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -281,29 +293,39 @@ static void captureLoop(cv::VideoCapture &cap, const std::string &url,
     }
 }
 
-static void consumeLoop(LatestFrame &shared,
+static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
                         const std::array<cv::Mat, COLUMN_CNT> &warp_matrices,
                         std::array<TrackState, COLUMN_CNT> &track_states,
                         const cv::Ptr<cv::CLAHE> &clahe,
                         std::atomic<bool> &is_running) {
     cv::Mat local_frame;
+    const auto run_start = std::chrono::steady_clock::now();
 
     while (is_running.load(std::memory_order_relaxed)) {
         bool have_frame = shared.tryTake(local_frame, is_running);
 
         if (have_frame)
             for (unsigned int i{}; i < COLUMN_CNT; ++i)
-                processColumn(local_frame, warp_matrices[i], track_states[i], i,
-                              clahe);
+                processColumn(cfg, local_frame, warp_matrices[i],
+                              track_states[i], i, clahe);
 
-        if (cv::pollKey() == 'q')
-            is_running = false;
+        if (cfg.show_gui) {
+            if (cv::pollKey() == 'q')
+                is_running = false;
+        } else {
+            if (g_signal_stop.load())
+                is_running = false;
+            if (cfg.duration.count() > 0 &&
+                std::chrono::steady_clock::now() - run_start > cfg.duration)
+                is_running = false;
+        }
     }
 }
 
-void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
+void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
+                      const std::string &rtsp_url,
                       const std::array<cv::Mat, COLUMN_CNT> &warp_matrices) {
-    std::filesystem::create_directory(OUT_DIR);
+    std::filesystem::create_directory(cfg.out_dir);
 
     cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0);
     std::array<TrackState, COLUMN_CNT> track_states; // holds state for all cols
@@ -311,16 +333,17 @@ void runIngestionLoop(cv::VideoCapture &cap, const std::string &rtsp_url,
     LatestFrame shared;
     std::atomic<bool> is_running{true};
 
-    std::thread capture_thrd(captureLoop, std::ref(cap), std::cref(rtsp_url),
-                             std::ref(shared), std::ref(is_running));
+    std::thread capture_thrd(captureLoop, std::cref(cfg), std::ref(cap),
+                             std::cref(rtsp_url), std::ref(shared),
+                             std::ref(is_running));
 
-    consumeLoop(shared, warp_matrices, track_states, clahe, is_running);
+    consumeLoop(cfg, shared, warp_matrices, track_states, clahe, is_running);
 
     // end of run flush
     for (unsigned int i{}; i < COLUMN_CNT; ++i) {
         TrackState &state = track_states[i];
         if (!state.history_buff.empty() && !state.last_saved_frame.empty())
-            saveIfChanged(state.history_buff.back(), state, i, "final");
+            saveIfChanged(cfg, state.history_buff.back(), state, i, "final");
     }
 
     // cleanup
