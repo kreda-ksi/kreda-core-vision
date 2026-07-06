@@ -77,7 +77,7 @@ static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
 
 static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
                           TrackState &state, unsigned int track_id,
-                          const char *reason) {
+                          const char *reason, int threshold) {
     cv::Mat cdiff, cthresh;
     cv::absdiff(frame, state.last_saved_frame, cdiff);
     cv::threshold(cdiff, cthresh, CONTENT_THRESH_INTENSITY, 255,
@@ -93,7 +93,7 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
         if (a < MAX_STROKE_COMP_AREA)
             chalk_pxs += a;
     }
-    if (chalk_pxs <= STATE_CHANGE_PXS) {
+    if (chalk_pxs <= threshold) {
         if (cfg.log_enabled)
             TrackLogger::instance(cfg).event(
                 track_id, std::format("SKIP_{}_{}", reason, raw_pxs),
@@ -174,7 +174,7 @@ static void updateActivityState(const RunConfig &cfg,
                          : 0;
         const cv::Mat &old_frame = state.history_buff[idx];
 
-        saveIfChanged(cfg, old_frame, state, track_id, "slide");
+        saveIfChanged(cfg, old_frame, state, track_id, "slide", SLIDE_SAVE_PXS);
 
         state.slide_recover = true;
         state.recover_cooldown = 0;
@@ -184,7 +184,8 @@ static void updateActivityState(const RunConfig &cfg,
         state.still_cnt = 0;
         state.was_active = true;
     } else if (state.was_active && ++state.still_cnt >= STILL_COOLDOWN) {
-        saveIfChanged(cfg, content_frame, state, track_id, "still");
+        saveIfChanged(cfg, content_frame, state, track_id, "still",
+                      STATE_CHANGE_PXS);
         state.still_cnt = 0;
         state.was_active = false;
     }
@@ -230,7 +231,8 @@ static void evaluateAndExtract(const RunConfig &cfg,
 
     auto since_save = std::chrono::steady_clock::now() - state.last_save_time;
     if (since_save > SNAPSHOT_INTERVAL) {
-        saveIfChanged(cfg, content_frame, state, track_id, "periodic");
+        saveIfChanged(cfg, content_frame, state, track_id, "periodic",
+                      STATE_CHANGE_PXS);
         state.last_save_time = std::chrono::steady_clock::now();
     }
 
@@ -343,7 +345,8 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     for (unsigned int i{}; i < COLUMN_CNT; ++i) {
         TrackState &state = track_states[i];
         if (!state.history_buff.empty() && !state.last_saved_frame.empty())
-            saveIfChanged(cfg, state.history_buff.back(), state, i, "final");
+            saveIfChanged(cfg, state.history_buff.back(), state, i, "final",
+                          FINAL_SAVE_PXS);
     }
 
     // cleanup

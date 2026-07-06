@@ -42,6 +42,10 @@ inline constexpr int MAX_STROKE_COMP_AREA = static_cast<int>(TOTAL_AREA * 0.02);
 inline constexpr unsigned int MOTION_HIST_FRAMES = 5;
 inline constexpr int STATE_CHANGE_PXS =
     15000; // how many pxs must differ from the last saved board
+inline constexpr int SLIDE_SAVE_PXS =
+    1500; // same as STATE_CHANGE_PXS, fired if the chalkboard was moved
+inline constexpr int FINAL_SAVE_PXS =
+    1500; // same as STATE_CHANGE_PXS, fired on the end frame
 inline constexpr int STILL_COOLDOWN =
     30; // how many frames of stillness required to capture
 inline constexpr int SLIDE_COOLDOWN =
