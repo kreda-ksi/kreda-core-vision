@@ -18,10 +18,25 @@ class TrackLogger {
     void frame(const FrameTelemetry &t) {
         if (!ok_)
             return;
+
+        TrackData &prev = last_[t.track_id];
+        auto now = std::chrono::steady_clock::now();
+
+        bool should_update =
+            !prev.valid || t.is_moving != prev.t.is_moving ||
+            t.is_sliding != prev.t.is_sliding ||
+            t.slide_recover != prev.t.slide_recover ||
+            std::abs(t.changed - prev.t.changed) > FRAME_LOG_DELTA;
+        if (!should_update)
+            return;
+
         file_ << std::format("{},{},FRAME,{},{},{},{},{},{}\n", elapsedMs(),
                              t.track_id, t.changed, int(t.is_moving),
                              int(t.is_sliding), int(t.slide_recover),
                              t.still_cnt, t.recover_cooldown);
+        prev.t = t;
+        prev.written_at = now;
+        prev.valid = true;
         maybeFlush();
     }
 
@@ -56,6 +71,13 @@ class TrackLogger {
         if (++line_cnt_ % 250 == 0)
             file_.flush();
     }
+
+    struct TrackData {
+        FrameTelemetry t{};
+        std::chrono::steady_clock::time_point written_at{};
+        bool valid = false;
+    };
+    std::array<TrackData, COLUMN_CNT> last_{};
 
     std::ofstream file_;
     bool ok_ = false;
