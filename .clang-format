@@ -7,5 +7,5 @@ UseTab: Never
 
 BreakBeforeBraces: Attach
 AllowShortBlocksOnASingleLine: Empty
-AllowShortFunctionsOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: All
 ...
