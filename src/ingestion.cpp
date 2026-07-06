@@ -75,6 +75,21 @@ static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
     return final;
 }
 
+static int countChalkPixels(const cv::Mat &bin_mask, int max_comp_area) {
+    cv::Mat labels, stats, centroids;
+    int n =
+        cv::connectedComponentsWithStats(bin_mask, labels, stats, centroids);
+
+    int chalk_pxs = 0;
+    for (int i = 1; i < n; ++i) { // 0 is bg
+        int a = stats.at<int>(i, cv::CC_STAT_AREA);
+        if (a < max_comp_area)
+            chalk_pxs += a;
+    }
+
+    return chalk_pxs;
+}
+
 static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
                           TrackState &state, unsigned int track_id,
                           const char *reason, int threshold) {
@@ -85,14 +100,8 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
 
     int raw_pxs = cv::countNonZero(cthresh);
 
-    cv::Mat labels, stats, centroids;
-    int n = cv::connectedComponentsWithStats(cthresh, labels, stats, centroids);
-    int chalk_pxs = 0;
-    for (int i = 1; i < n; ++i) { // 0 is bg
-        int a = stats.at<int>(i, cv::CC_STAT_AREA);
-        if (a < MAX_STROKE_COMP_AREA)
-            chalk_pxs += a;
-    }
+    int chalk_pxs = countChalkPixels(cthresh, MAX_STROKE_COMP_AREA);
+
     if (chalk_pxs <= threshold) {
         if (cfg.log_enabled)
             TrackLogger::instance(cfg).event(
