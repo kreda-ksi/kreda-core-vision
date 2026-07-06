@@ -54,7 +54,6 @@ inline constexpr std::chrono::seconds SNAPSHOT_INTERVAL{20};
 // calibration
 inline constexpr int DRIFT_MIN_INLIERS = 15;
 inline constexpr double DRIFT_MAX_SCALE_DEV = 0.10; // warn past 10% zoom drift
-inline constexpr double DRIFT_IDENTITY_EPS = 2.0;   // px epsilon
 
 // logging
 inline constexpr int FRAME_LOG_DELTA = 1000;
