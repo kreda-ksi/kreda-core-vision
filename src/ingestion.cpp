@@ -243,7 +243,9 @@ static void evaluateAndExtract(const RunConfig &cfg,
         detectMotion(motion_frame, state.motion_hist.front(), display_frame);
 
     const bool is_sliding = changed > SLIDE_TRIGGER_PXS;
-    const bool is_moving = !is_sliding && changed > MOTION_TRIGGER_PXS;
+    const bool is_moving =
+        !is_sliding && (state.was_active ? changed > MOTION_TRIGGER_PXS / 2
+                                         : changed > MOTION_TRIGGER_PXS);
 
     const FrameTelemetry t{track_id,
                            changed,
