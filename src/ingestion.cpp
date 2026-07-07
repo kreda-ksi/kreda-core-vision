@@ -145,8 +145,29 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
     return true;
 }
 
+static cv::Mat gridOccupancy(const cv::Mat &bin_mask) {
+    cv::Mat grid;
+    cv::resize(bin_mask, grid, cv::Size(GRID_COLS, GRID_ROWS), 0, 0,
+               cv::INTER_AREA);
+    return grid;
+}
+
+static int countActiveColumns(const cv::Mat &grid) {
+    int active_cols = 0;
+
+    for (int c{}; c < grid.cols; ++c) {
+        for (int r{}; r < grid.rows; ++r)
+            if (grid.at<std::uint8_t>(r, c) > GRID_CELL_ACTIVE) {
+                active_cols++;
+                break;
+            }
+    }
+
+    return active_cols;
+}
+
 static int detectMotion(const cv::Mat &motion_frame, cv::Mat &ref_f32,
-                        cv::Mat *display_frame) {
+                        cv::Mat *display_frame, cv::Mat &grid_out) {
     cv::Mat ref_8u;
     ref_f32.convertTo(ref_8u, CV_8UC3);
 
@@ -161,6 +182,8 @@ static int detectMotion(const cv::Mat &motion_frame, cv::Mat &ref_f32,
     const cv::Mat kernel =
         cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
     cv::morphologyEx(thresh, thresh, cv::MORPH_OPEN, kernel);
+
+    grid_out = gridOccupancy(thresh);
 
     if (display_frame)
         display_frame->setTo(cv::Scalar(0, 255, 255), thresh);
@@ -244,10 +267,12 @@ static void evaluateAndExtract(const RunConfig &cfg,
     if (updateSlideRecovery(state, motion_frame, track_id, stream_ms, logger))
         return;
 
+    cv::Mat grid;
     const int changed =
-        detectMotion(motion_frame, state.motion_ref_f32, display_frame);
+        detectMotion(motion_frame, state.motion_ref_f32, display_frame, grid);
 
-    const bool is_sliding = changed > SLIDE_TRIGGER_PXS;
+    const bool is_sliding = changed > SLIDE_TRIGGER_PXS &&
+                            countActiveColumns(grid) >= SLIDE_MIN_ACTIVE_COLS;
     const bool is_moving =
         !is_sliding && (state.was_active ? changed > MOTION_TRIGGER_PXS / 2
                                          : changed > MOTION_TRIGGER_PXS);

@@ -38,7 +38,7 @@ inline constexpr int CONTENT_THRESH_INTENSITY =
     MOTION_THRESH_INTENSITY; // kept as separate for potential fine-tuning
 inline constexpr int MOTION_TRIGGER_PXS =
     1000; // how many pxs must change to trigger movement
-inline constexpr int SLIDE_TRIGGER_PXS = static_cast<int>(TOTAL_AREA * 0.08);
+inline constexpr int SLIDE_TRIGGER_PXS = static_cast<int>(TOTAL_AREA * 0.05);
 inline constexpr int MAX_STROKE_COMP_AREA = static_cast<int>(TOTAL_AREA * 0.02);
 inline constexpr unsigned int MOTION_HIST_FRAMES = 5;
 inline constexpr int STATE_CHANGE_PXS =
@@ -50,10 +50,18 @@ inline constexpr int FINAL_SAVE_PXS =
 inline constexpr int STILL_COOLDOWN =
     30; // how many frames of stillness required to capture
 inline constexpr int SLIDE_COOLDOWN =
-    120; // time after sliding finishes to let board settle
+    30; // time after sliding finishes to let board settle
 inline constexpr int PRE_SLIDE_BUFFER_FRAMES = 60; // 60 frames of memory
 inline constexpr unsigned int SLIDE_LOOKBACK_FRAMES = 7;
 inline constexpr double MOTION_REF_ALPHA = 0.15;
+
+inline constexpr float GRID_RES = 1.0f / 80.0f;
+inline constexpr int GRID_COLS = static_cast<int>(OUT_WID * GRID_RES);
+inline constexpr int GRID_ROWS = static_cast<int>(OUT_HEI * GRID_RES);
+inline constexpr int GRID_CELL_ACTIVE =
+    32; // INTER_AREA resize to CV8_U, 32/255 ~ 12.5%
+inline constexpr int SLIDE_MIN_ACTIVE_COLS =
+    static_cast<int>(GRID_ROWS * 9 / 10);
 
 inline constexpr std::chrono::seconds SNAPSHOT_INTERVAL{20};
 
