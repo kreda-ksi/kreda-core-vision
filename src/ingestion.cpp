@@ -185,8 +185,12 @@ static int detectMotion(const cv::Mat &motion_frame, cv::Mat &ref_f32,
 
     grid_out = gridOccupancy(thresh);
 
-    if (display_frame)
-        display_frame->setTo(cv::Scalar(0, 255, 255), thresh);
+    if (display_frame) {
+        cv::Mat thresh_up;
+        cv::resize(thresh, thresh_up, display_frame->size(), 0, 0,
+                   cv::INTER_NEAREST);
+        display_frame->setTo(cv::Scalar(0, 255, 255), thresh_up);
+    }
 
     cv::accumulateWeighted(motion_frame, ref_f32, MOTION_REF_ALPHA);
 
@@ -228,7 +232,7 @@ static void updateActivityState(const RunConfig &cfg,
                 : 0;
         const cv::Mat &old_frame = state.history_buff[idx];
 
-        saveIfChanged(cfg, old_frame, state, track_id, "slide", SLIDE_SAVE_PXS,
+        saveIfChanged(cfg, old_frame, state, track_id, "slide", LAST_CHANCE_PXS,
                       stream_ms, logger);
 
         state.slide_recover = true;
@@ -301,32 +305,38 @@ static void evaluateAndExtract(const RunConfig &cfg,
 }
 
 static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
-                          const cv::Mat &warp, TrackState &state,
+                          const cv::Mat &content_warp,
+                          const cv::Mat &motion_warp, TrackState &state,
                           unsigned int track_id,
                           const cv::Ptr<cv::CLAHE> &clahe,
                           std::int64_t stream_ms, TrackLogger &logger) {
-    cv::Mat dewarped;
+    cv::Mat content_raw, motion_raw;
 
     // homography
-    cv::warpPerspective(frame, dewarped, warp, cv::Size(OUT_WID, OUT_HEI));
+    cv::warpPerspective(
+        frame, content_raw, content_warp,
+        cv::Size(static_cast<int>(CONTENT_WID), static_cast<int>(CONTENT_HEI)));
+    cv::warpPerspective(
+        frame, motion_raw, motion_warp,
+        cv::Size(static_cast<int>(MOTION_WID), static_cast<int>(MOTION_HEI)));
 
     // pixel math
-    const cv::Mat final = enhanceChalkboard(dewarped, clahe);
+    const cv::Mat final = enhanceChalkboard(content_raw, clahe);
 
     if (!cfg.show_gui) {
-        evaluateAndExtract(cfg, dewarped, final, state, track_id, nullptr,
+        evaluateAndExtract(cfg, motion_raw, final, state, track_id, nullptr,
                            stream_ms, logger);
         return;
     }
 
     cv::Mat display;
     cv::cvtColor(final, display, cv::COLOR_GRAY2BGR);
-    evaluateAndExtract(cfg, dewarped, final, state, track_id, &display,
+    evaluateAndExtract(cfg, motion_raw, final, state, track_id, &display,
                        stream_ms, logger);
 
     // debug display
     if (cfg.show_raw)
-        cv::imshow(std::format("KREDA column {} (raw)", track_id), dewarped);
+        cv::imshow(std::format("KREDA column {} (raw)", track_id), motion_raw);
     cv::imshow(std::format("KREDA column {}", track_id), display);
 }
 
@@ -373,7 +383,7 @@ static void captureLoop(const RunConfig &cfg, cv::VideoCapture &cap,
 }
 
 static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
-                        const std::array<cv::Mat, COLUMN_CNT> &warp_matrices,
+                        const WarpSet &warps,
                         std::array<TrackState, COLUMN_CNT> &track_states,
                         const cv::Ptr<cv::CLAHE> &clahe,
                         std::atomic<bool> &is_running, TrackLogger &logger) {
@@ -385,9 +395,9 @@ static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
 
         if (have_frame)
             for (unsigned int i{}; i < COLUMN_CNT; ++i)
-                processColumn(cfg, local.frame, warp_matrices[i],
-                              track_states[i], i, clahe, local.stream_ms,
-                              logger);
+                processColumn(cfg, local.frame, warps.content[i],
+                              warps.motion[i], track_states[i], i, clahe,
+                              local.stream_ms, logger);
 
         if (cfg.show_gui && cv::pollKey() == 'q')
             is_running = false;
@@ -400,8 +410,7 @@ static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
 }
 
 void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
-                      const std::string &rtsp_url,
-                      const std::array<cv::Mat, COLUMN_CNT> &warp_matrices) {
+                      const std::string &rtsp_url, const WarpSet &warps) {
     std::filesystem::create_directory(cfg.out_dir);
 
     const cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(2.0);
@@ -415,8 +424,7 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     std::thread capture_thrd(
         [&] { captureLoop(cfg, cap, rtsp_url, shared, is_running, logger); });
 
-    consumeLoop(cfg, shared, warp_matrices, track_states, clahe, is_running,
-                logger);
+    consumeLoop(cfg, shared, warps, track_states, clahe, is_running, logger);
 
     is_running = false;
     shared.wake();
@@ -426,7 +434,7 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
         TrackState &state = track_states[i];
         if (!state.history_buff.empty() && !state.last_saved_frame.empty())
             saveIfChanged(cfg, state.history_buff.back(), state, i, "final",
-                          FINAL_SAVE_PXS, state.last_seen_ms, logger);
+                          LAST_CHANCE_PXS, state.last_seen_ms, logger);
     }
 
     // cleanup

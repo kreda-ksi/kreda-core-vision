@@ -107,9 +107,8 @@ int main(int argc, char **argv) {
         return ERTSP;
     }
 
-    const std::array<cv::Mat, COLUMN_CNT> warp_matrices =
-        runCalibration(cfg, cap);
-    runIngestionLoop(cfg, cap, cfg.rtsp_url, warp_matrices);
+    const WarpSet warps = runCalibration(cfg, cap);
+    runIngestionLoop(cfg, cap, cfg.rtsp_url, warps);
 
     // cleanup
     cap.release();

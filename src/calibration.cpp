@@ -27,25 +27,22 @@ static void onMouseClick(int event, int x, int y, int /*flags*/,
 }
 
 static bool loadCalibration(const RunConfig &cfg,
-                            std::array<cv::Mat, COLUMN_CNT> &warps) {
+                            std::vector<cv::Point2f> &src_points) {
     const cv::FileStorage fs(cfg.calib_file, cv::FileStorage::READ);
     if (!fs.isOpened())
         return false;
 
-    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
-        fs[std::format("track_{}", i)] >> warps[i];
-        if (warps[i].empty()) {
-            std::cout << "Calibration file invalid or outdated. Running manual "
-                         "calibration.\n";
-            return false;
-        }
+    fs["src_points"] >> src_points;
+    if (src_points.size() != POINTS_CNT) {
+        std::cout << "Calibration file invalid or outdated. Running manual "
+                     "calibration.\n";
+        return false;
     }
 
     return true;
 }
 
 static void saveCalibration(const RunConfig &cfg,
-                            const std::array<cv::Mat, COLUMN_CNT> &warps,
                             const std::vector<cv::Point2f> &src_points,
                             const cv::Mat &ref_frame) {
     cv::imwrite(cfg.ref_file, ref_frame);
@@ -57,8 +54,6 @@ static void saveCalibration(const RunConfig &cfg,
         return;
     }
 
-    for (unsigned int i{}; i < COLUMN_CNT; ++i)
-        fs << std::format("track_{}", i) << warps[i];
     fs << "src_points" << src_points;
 }
 
@@ -102,22 +97,22 @@ collectPointsInteractively(const cv::Mat &frame) {
 }
 
 static std::array<cv::Mat, COLUMN_CNT>
-computeWarps(const std::vector<cv::Point2f> &src_points) {
-    const std::vector<cv::Point2f> dst_points = {
-        cv::Point2f(0, 0),
-        cv::Point2f(OUT_WID, 0),
-        cv::Point2f(OUT_WID, OUT_HEI),
-        cv::Point2f(0, OUT_HEI),
-    };
-
+warpsFor(const std::vector<cv::Point2f> &src_points, float w, float h) {
+    const std::vector<cv::Point2f> dst = {{0, 0}, {w, 0}, {w, h}, {0, h}};
     std::array<cv::Mat, COLUMN_CNT> warps;
+
     for (std::size_t i{}; i < COLUMN_CNT; ++i) {
         const std::vector<cv::Point2f> track_src(
             src_points.begin() + i * 4, src_points.begin() + (i + 1) * 4);
-        warps[i] = cv::getPerspectiveTransform(track_src, dst_points);
+        warps[i] = cv::getPerspectiveTransform(track_src, dst);
     }
 
     return warps;
+}
+
+static WarpSet computeWarps(const std::vector<cv::Point2f> &src_points) {
+    return {warpsFor(src_points, CONTENT_WID, CONTENT_HEI),
+            warpsFor(src_points, MOTION_WID, MOTION_HEI)};
 }
 
 // H maps current frame coords -> ref frame coords
@@ -202,8 +197,7 @@ static bool validateDrift(const cv::Mat &H, const cv::Size &frame_size) {
     return true;
 }
 
-static bool applyDriftCorrection(const RunConfig &cfg,
-                                 std::array<cv::Mat, COLUMN_CNT> &warps,
+static bool applyDriftCorrection(const RunConfig &cfg, WarpSet &warps,
                                  cv::VideoCapture &cap) {
     const cv::Mat ref = cv::imread(cfg.ref_file);
     if (ref.empty())
@@ -219,22 +213,25 @@ static bool applyDriftCorrection(const RunConfig &cfg,
     if (!validateDrift(H, curr.size()))
         return false;
 
-    for (auto &w : warps)
+    for (auto &w : warps.content)
+        w = w * H;
+    for (auto &w : warps.motion)
         w = w * H;
     std::cout << "Calibration drift-corrected.\n";
     return true;
 }
 
-std::array<cv::Mat, COLUMN_CNT> runCalibration(const RunConfig &cfg,
-                                               cv::VideoCapture &cap) {
-    std::array<cv::Mat, COLUMN_CNT> warps;
+WarpSet runCalibration(const RunConfig &cfg, cv::VideoCapture &cap) {
+    std::vector<cv::Point2f> src_points;
 
-    if (loadCalibration(cfg, warps) && !cfg.force_recalibrate) {
+    if (loadCalibration(cfg, src_points) && !cfg.force_recalibrate) {
+        WarpSet warps = computeWarps(src_points);
         if (!applyDriftCorrection(cfg, warps, cap))
             std::cout
                 << "Drift correction unavailable, using stored calibration.\n";
         return warps;
     }
+
     if (!cfg.show_gui) {
         std::cerr << "Headless mode requires an existing calibration file.\n";
         exit(ECAL);
@@ -246,10 +243,9 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(const RunConfig &cfg,
         exit(ECAL);
     }
 
-    auto src_points = collectPointsInteractively(frame);
-    warps = computeWarps(src_points);
-    saveCalibration(cfg, warps, src_points, frame);
-    return warps;
+    src_points = collectPointsInteractively(frame);
+    saveCalibration(cfg, src_points, frame);
+    return computeWarps(src_points);
 }
 
 } // namespace kreda
