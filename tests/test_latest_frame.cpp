@@ -57,3 +57,32 @@ TEST_CASE("LatestFrame: drop mode keeps only the latest frame") {
 
     CHECK_FALSE(lf.tryTake(out, running));
 }
+
+TEST_CASE("LatestFrame: shutdown frees a blocked producer") {
+    LatestFrame lf;
+    std::atomic<bool> running{true};
+
+    cv::Mat first = tinyFrame(7);
+    lf.push(first, 1, true, running); // slot now full
+
+    std::atomic<bool> producer_done{false};
+    std::thread producer([&] {
+        cv::Mat second = tinyFrame(8);
+        lf.push(second, 2, true, running); // blocks
+        producer_done = true;
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CHECK_FALSE(producer_done.load()); // blocked
+
+    running = false;
+    lf.wake();
+    producer.join(); // this returns
+    CHECK(producer_done.load());
+
+    // blocked push was dropped, so slot still holds the 1st frame
+    TimedFrame out;
+    std::atomic<bool> running2{true};
+    REQUIRE(lf.tryTake(out, running2));
+    CHECK(out.stream_ms == 1);
+}
