@@ -6,6 +6,7 @@
 #include "track_log.hpp"
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <deque>
 #include <filesystem>
 #include <format>
@@ -40,6 +41,7 @@ class LatestFrame {
     }
 
     bool tryTake(cv::Mat &out, const std::atomic<bool> &running) {
+        // NOLINTNEXTLINE(misc-const-correctness)
         std::unique_lock<std::mutex> lock(mtx_);
         if (!cv_.wait_for(lock, std::chrono::milliseconds(100),
                           [&] { return !frame_.empty() || !running; }))
