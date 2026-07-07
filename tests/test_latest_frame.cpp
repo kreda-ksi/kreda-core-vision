@@ -41,3 +41,19 @@ TEST_CASE("LatestFrame: lossless mode delivers all frames and joins") {
     CHECK(received.load() == N);
 }
 
+TEST_CASE("LatestFrame: drop mode keeps only the latest frame") {
+    LatestFrame lf;
+    std::atomic<bool> running{true};
+
+    cv::Mat a = tinyFrame(1);
+    cv::Mat b = tinyFrame(2);
+    lf.push(a, 100, false, running);
+    lf.push(b, 200, false, running);
+
+    TimedFrame out;
+    REQUIRE(lf.tryTake(out, running));
+    CHECK(out.stream_ms == 200);
+    CHECK(out.frame.at<cv::Vec3b>(0, 0)[0] == 2);
+
+    CHECK_FALSE(lf.tryTake(out, running));
+}
