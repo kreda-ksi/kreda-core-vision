@@ -20,3 +20,10 @@ add_executable(vision_engine
 target_link_libraries(vision_engine
   ${OpenCV_LIBS}
 )
+
+if (APPLE) # explicitly write apple sdk path
+    execute_process(COMMAND xcrun --show-sdk-path
+                    OUTPUT_VARIABLE MAC_SYSROOT
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot ${MAC_SYSROOT}")
+endif()
