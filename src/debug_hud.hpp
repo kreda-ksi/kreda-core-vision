@@ -8,6 +8,9 @@
 namespace kreda {
 
 inline void drawHud(cv::Mat *display, const FrameTelemetry &t) {
+    if (!display)
+        return;
+
     cv::rectangle(*display, cv::Point(0, 0), cv::Point(display->cols, 58),
                   cv::Scalar(0, 0, 0), cv::FILLED);
 
