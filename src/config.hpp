@@ -53,6 +53,7 @@ inline constexpr int SLIDE_COOLDOWN =
     120; // time after sliding finishes to let board settle
 inline constexpr int PRE_SLIDE_BUFFER_FRAMES = 60; // 60 frames of memory
 inline constexpr unsigned int SLIDE_LOOKBACK_FRAMES = 7;
+inline constexpr double MOTION_REF_ALPHA = 0.15;
 
 inline constexpr std::chrono::seconds SNAPSHOT_INTERVAL{20};
 

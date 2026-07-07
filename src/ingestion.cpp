@@ -18,7 +18,7 @@ namespace kreda {
 
 struct TrackState {
     std::deque<cv::Mat> history_buff;
-    std::deque<cv::Mat> motion_hist;
+    cv::Mat motion_ref_f32;
 
     cv::Mat last_saved_frame;
     std::int64_t last_save_ms = -1;
@@ -145,10 +145,13 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
     return true;
 }
 
-static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame,
+static int detectMotion(const cv::Mat &motion_frame, cv::Mat &ref_f32,
                         cv::Mat *display_frame) {
+    cv::Mat ref_8u;
+    ref_f32.convertTo(ref_8u, CV_8UC3);
+
     cv::Mat cdiff, diff, thresh;
-    cv::absdiff(motion_frame, ref_frame, cdiff);
+    cv::absdiff(motion_frame, ref_8u, cdiff);
     std::vector<cv::Mat> ch(3);
     cv::split(cdiff, ch);
     diff = cv::max(ch[0], cv::max(ch[1], ch[2]));
@@ -162,6 +165,8 @@ static int detectMotion(const cv::Mat &motion_frame, const cv::Mat &ref_frame,
     if (display_frame)
         display_frame->setTo(cv::Scalar(0, 255, 255), thresh);
 
+    cv::accumulateWeighted(motion_frame, ref_f32, MOTION_REF_ALPHA);
+
     return cv::countNonZero(thresh);
 }
 
@@ -173,12 +178,12 @@ static bool updateSlideRecovery(TrackState &state, const cv::Mat &motion_frame,
         if (state.recover_cooldown >= SLIDE_COOLDOWN) {
             state.slide_recover = false;
             state.recover_cooldown = 0;
+            motion_frame.convertTo(state.motion_ref_f32, CV_32FC3);
             logger.event(track_id, "RECOVERY_DONE", stream_ms);
+        } else {
+            cv::accumulateWeighted(motion_frame, state.motion_ref_f32,
+                                   MOTION_REF_ALPHA);
         }
-
-        state.motion_hist.push_back(motion_frame.clone());
-        if (state.motion_hist.size() > MOTION_HIST_FRAMES)
-            state.motion_hist.pop_front();
 
         return true;
     }
@@ -231,7 +236,7 @@ static void evaluateAndExtract(const RunConfig &cfg,
 
     if (state.last_saved_frame.empty()) { // inital state
         state.last_saved_frame = content_frame.clone();
-        state.motion_hist.push_back(motion_frame.clone());
+        motion_frame.convertTo(state.motion_ref_f32, CV_32FC3);
         state.last_save_ms = stream_ms;
         return;
     }
@@ -240,7 +245,7 @@ static void evaluateAndExtract(const RunConfig &cfg,
         return;
 
     const int changed =
-        detectMotion(motion_frame, state.motion_hist.front(), display_frame);
+        detectMotion(motion_frame, state.motion_ref_f32, display_frame);
 
     const bool is_sliding = changed > SLIDE_TRIGGER_PXS;
     const bool is_moving =
@@ -268,10 +273,6 @@ static void evaluateAndExtract(const RunConfig &cfg,
 
     updateActivityState(cfg, content_frame, state, track_id, is_sliding,
                         is_moving, changed, stream_ms, logger);
-
-    state.motion_hist.push_back(motion_frame.clone());
-    if (state.motion_hist.size() > MOTION_HIST_FRAMES)
-        state.motion_hist.pop_front();
 }
 
 static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
