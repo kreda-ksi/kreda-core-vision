@@ -2,6 +2,19 @@ name: CI
 on: [push, pull_request]
 
 jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: install deps
+        run: sudo apt-get update && sudo apt-get install -y cmake libopencv-dev
+      - name: configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: build
+        run: cmake --build build -j
+      - name: test
+        run: ctest --test-dir build --output-on-failure
+
   format:
     runs-on: ubuntu-latest
     steps:
@@ -17,13 +30,8 @@ jobs:
     steps:
      - uses: actions/checkout@v7
      - name: install deps
-       run: |
-          sudo apt-get update && sudo apt-get install -y clang-tidy cmake libopencv-dev
-
-     - name: configure CMake
+       run: sudo apt-get update && sudo apt-get install -y clang-tidy cmake libopencv-dev
+     - name: configure
        run: cmake -B build
-
      - name: clang-tidy
-       run: |
-          find src -name '*.cpp' -o -name '*.hpp' | \
-            xargs clang-tidy -p build --warnings-as-errors='*'
+       run: run-clang-tidy -p build -quiet
