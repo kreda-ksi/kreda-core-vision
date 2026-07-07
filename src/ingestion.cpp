@@ -240,7 +240,7 @@ static void evaluateAndExtract(const RunConfig &cfg,
                            state.slide_recover,
                            state.still_cnt,
                            state.recover_cooldown,
-                           state.save_flash--};
+                           state.save_flash > 0 ? state.save_flash-- : 0};
 
     logger.frame(t, stream_ms);
     drawHud(display_frame, t);
