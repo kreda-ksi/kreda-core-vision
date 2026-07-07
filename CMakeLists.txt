@@ -44,6 +44,7 @@ option(KREDA_BUILD_TESTS "Build unit tests" ON)
 if (KREDA_BUILD_TESTS)
     add_executable(kreda_vision_tests
         tests/test_main.cpp
+        tests/test_latest_frame.cpp
     )
     target_link_libraries(kreda_vision_tests PRIVATE
         kreda_vision_lib
