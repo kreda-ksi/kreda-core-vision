@@ -20,6 +20,7 @@ namespace kreda {
 struct TrackState {
     std::deque<cv::Mat> history_buff;
     cv::Mat motion_ref_f32;
+    cv::Mat last_grid;
 
     cv::Mat last_saved_frame;
     std::int64_t last_save_ms = -1;
@@ -117,7 +118,8 @@ static int countChalkPixels(const cv::Mat &bin_mask, int max_comp_area) {
 static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
                           TrackState &state, unsigned int track_id,
                           const char *reason, int threshold,
-                          std::int64_t stream_ms, TrackLogger &logger) {
+                          std::int64_t stream_ms, TrackLogger &logger,
+                          SidecarLogger &sidecar) {
     cv::Mat cdiff, cthresh;
     cv::absdiff(frame, state.last_saved_frame, cdiff);
     cv::threshold(cdiff, cthresh, CONTENT_THRESH_INTENSITY, 255,
@@ -139,6 +141,10 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
 
     logger.event(track_id, std::format("SAVE_{}_{}", reason, raw_pxs),
                  stream_ms, chalk_pxs);
+
+    if (!state.last_grid.empty())
+        sidecar.logSave(filename, stream_ms, std::format("SAVE_{}", reason),
+                        state.last_grid);
 
     state.last_save_ms = stream_ms;
     state.last_saved_frame = frame.clone();
@@ -223,7 +229,8 @@ static void updateActivityState(const RunConfig &cfg,
                                 const cv::Mat &content_frame, TrackState &state,
                                 unsigned int track_id, bool is_sliding,
                                 bool is_moving, int changed,
-                                std::int64_t stream_ms, TrackLogger &logger) {
+                                std::int64_t stream_ms, TrackLogger &logger,
+                                SidecarLogger &sidecar) {
     if (is_sliding) {
         logger.event(track_id, "SLIDE_DETECTED", stream_ms, changed);
 
@@ -234,7 +241,7 @@ static void updateActivityState(const RunConfig &cfg,
         const cv::Mat &old_frame = state.history_buff[idx];
 
         saveIfChanged(cfg, old_frame, state, track_id, "slide", LAST_CHANCE_PXS,
-                      stream_ms, logger);
+                      stream_ms, logger, sidecar);
 
         state.slide_recover = true;
         state.recover_cooldown = 0;
@@ -245,7 +252,7 @@ static void updateActivityState(const RunConfig &cfg,
         state.was_active = true;
     } else if (state.was_active && ++state.still_cnt >= STILL_COOLDOWN) {
         saveIfChanged(cfg, content_frame, state, track_id, "still",
-                      STATE_CHANGE_PXS, stream_ms, logger);
+                      STATE_CHANGE_PXS, stream_ms, logger, sidecar);
         state.still_cnt = 0;
         state.was_active = false;
     }
@@ -255,7 +262,8 @@ static void evaluateAndExtract(const RunConfig &cfg,
                                const cv::Mat &motion_frame,
                                const cv::Mat &content_frame, TrackState &state,
                                unsigned int track_id, cv::Mat *display_frame,
-                               std::int64_t stream_ms, TrackLogger &logger) {
+                               std::int64_t stream_ms, TrackLogger &logger,
+                               SidecarLogger &sidecar) {
     state.last_seen_ms = stream_ms;
     // update ring buffer
     state.history_buff.push_back(content_frame.clone());
@@ -275,6 +283,8 @@ static void evaluateAndExtract(const RunConfig &cfg,
     cv::Mat grid;
     const int changed =
         detectMotion(motion_frame, state.motion_ref_f32, display_frame, grid);
+
+    state.last_grid = grid.clone();
 
     const bool is_sliding = changed > SLIDE_TRIGGER_PXS &&
                             countActiveColumns(grid) >= SLIDE_MIN_ACTIVE_COLS;
@@ -297,12 +307,12 @@ static void evaluateAndExtract(const RunConfig &cfg,
     if (stream_ms - state.last_save_ms >
         std::chrono::milliseconds(SNAPSHOT_INTERVAL).count()) {
         saveIfChanged(cfg, content_frame, state, track_id, "periodic",
-                      STATE_CHANGE_PXS, stream_ms, logger);
+                      STATE_CHANGE_PXS, stream_ms, logger, sidecar);
         state.last_save_ms = stream_ms;
     }
 
     updateActivityState(cfg, content_frame, state, track_id, is_sliding,
-                        is_moving, changed, stream_ms, logger);
+                        is_moving, changed, stream_ms, logger, sidecar);
 }
 
 static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
@@ -310,7 +320,8 @@ static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
                           const cv::Mat &motion_warp, TrackState &state,
                           unsigned int track_id,
                           const cv::Ptr<cv::CLAHE> &clahe,
-                          std::int64_t stream_ms, TrackLogger &logger) {
+                          std::int64_t stream_ms, TrackLogger &logger,
+                          SidecarLogger &sidecar) {
     cv::Mat content_raw, motion_raw;
 
     // homography
@@ -327,14 +338,14 @@ static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
 
     if (!cfg.show_gui) {
         evaluateAndExtract(cfg, motion_raw, final, state, track_id, nullptr,
-                           stream_ms, logger);
+                           stream_ms, logger, sidecar);
         return;
     }
 
     cv::Mat display;
     cv::cvtColor(final, display, cv::COLOR_GRAY2BGR);
     evaluateAndExtract(cfg, motion_raw, final, state, track_id, &display,
-                       stream_ms, logger);
+                       stream_ms, logger, sidecar);
 
     // debug display
     if (cfg.show_raw)
@@ -388,7 +399,8 @@ static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
                         const WarpSet &warps,
                         std::array<TrackState, COLUMN_CNT> &track_states,
                         const cv::Ptr<cv::CLAHE> &clahe,
-                        std::atomic<bool> &is_running, TrackLogger &logger) {
+                        std::atomic<bool> &is_running, TrackLogger &logger,
+                        SidecarLogger &sidecar) {
     TimedFrame local;
     const auto run_start = std::chrono::steady_clock::now();
 
@@ -399,7 +411,7 @@ static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
             for (unsigned int i{}; i < COLUMN_CNT; ++i)
                 processColumn(cfg, local.frame, warps.content[i],
                               warps.motion[i], track_states[i], i, clahe,
-                              local.stream_ms, logger);
+                              local.stream_ms, logger, sidecar);
 
         if (cfg.show_gui && cv::pollKey() == 'q')
             is_running = false;
@@ -422,11 +434,13 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     std::atomic<bool> is_running{true};
 
     TrackLogger logger(cfg);
+    SidecarLogger sidecar(cfg);
 
     std::thread capture_thrd(
         [&] { captureLoop(cfg, cap, rtsp_url, shared, is_running, logger); });
 
-    consumeLoop(cfg, shared, warps, track_states, clahe, is_running, logger);
+    consumeLoop(cfg, shared, warps, track_states, clahe, is_running, logger,
+                sidecar);
 
     is_running = false;
     shared.wake();
@@ -436,7 +450,7 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
         TrackState &state = track_states[i];
         if (!state.history_buff.empty() && !state.last_saved_frame.empty())
             saveIfChanged(cfg, state.history_buff.back(), state, i, "final",
-                          LAST_CHANCE_PXS, state.last_seen_ms, logger);
+                          LAST_CHANCE_PXS, state.last_seen_ms, logger, sidecar);
     }
 
     // cleanup

@@ -16,7 +16,7 @@ static inline void printUsage(const char *prog) {
         "Usage: {} [OPTIONS] <rtsp_url>\n"
         "  --headless           no windows (requires existing calibration)\n"
         "  --no-raw             suppress raw debug windows\n"
-        "  --no-log             disable CSV telemetry\n"
+        "  --no-log             disable CSV/JSON telemetry\n"
         "  --calib <path>       calibration file           (default: "
         "calibration.xml)\n"
         "  --out <path>         output directory           (default: staging)\n"
@@ -24,6 +24,8 @@ static inline void printUsage(const char *prog) {
         "kreda_run.csv)\n"
         "  --ref-file <path>    calibration reference file (default: "
         "calibration_ref.png)\n"
+        "  --grid-file <path>    motion grid JSON file     (default: "
+        "grid.json)\n"
         "  --recalibrate        force manual calibration\n"
         "  --duration <min>     auto-stop after min minutes\n",
         prog);
@@ -60,6 +62,8 @@ RunConfig parseArgs(int argc, char **argv) {
             cfg.out_dir = next_val(i, arg);
         } else if (arg == "--log-file" || arg == "-lf") {
             cfg.log_file = next_val(i, arg);
+        } else if (arg == "--grid-file" || arg == "-gf") {
+            cfg.grid_file = next_val(i, arg);
         } else if (arg == "--duration" || arg == "-d") {
             const long mins = std::strtol(next_val(i, arg), nullptr, 10);
             if (mins <= 0) {

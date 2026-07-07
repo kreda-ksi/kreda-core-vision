@@ -10,6 +10,7 @@ struct RunConfig {
     std::string out_dir = "staging";
     std::string log_file = "run.csv";
     std::string ref_file = "calibration_ref.png";
+    std::string grid_file = "grid.json";
     bool show_gui = true;
     bool show_raw = true;
     bool log_enabled = true;
