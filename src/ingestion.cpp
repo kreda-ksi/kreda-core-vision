@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <format>
 #include <mutex>
+#include <opencv2/imgproc.hpp>
 #include <thread>
 
 namespace kreda {
@@ -315,7 +316,8 @@ static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
     // homography
     cv::warpPerspective(
         frame, content_raw, content_warp,
-        cv::Size(static_cast<int>(CONTENT_WID), static_cast<int>(CONTENT_HEI)));
+        cv::Size(static_cast<int>(CONTENT_WID), static_cast<int>(CONTENT_HEI)),
+        cv::INTER_CUBIC);
     cv::warpPerspective(
         frame, motion_raw, motion_warp,
         cv::Size(static_cast<int>(MOTION_WID), static_cast<int>(MOTION_HEI)));
