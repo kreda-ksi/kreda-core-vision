@@ -55,6 +55,16 @@ static void saveCalibration(const RunConfig &cfg,
     }
 
     fs << "src_points" << src_points;
+
+    for (std::size_t i{}; i < COLUMN_CNT; ++i) {
+        auto a = src_points[i * 4], b = src_points[i * 4 + 1],
+             c = src_points[i * 4 + 2], d = src_points[i * 4 + 3];
+        double top = cv::norm(b - a), bottom = cv::norm(c - d);
+        double left = cv::norm(d - a), right = cv::norm(c - b);
+        std::cout << std::format("col {}: top {:.0f} bottom {:.0f} "
+                                 "left {:.0f} right {:.0f}\n",
+                                 i, top, bottom, left, right);
+    }
 }
 
 static void drawCalibrationOverlay(cv::Mat &display,
