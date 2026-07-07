@@ -105,7 +105,7 @@ class SidecarLogger {
 
     ~SidecarLogger() {
         if (ok_) {
-            file_ << "\n}\n";
+            file_ << "\n}\n}";
             file_.close();
         }
     }
