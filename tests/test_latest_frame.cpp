@@ -86,3 +86,13 @@ TEST_CASE("LatestFrame: shutdown frees a blocked producer") {
     REQUIRE(lf.tryTake(out, running2));
     CHECK(out.stream_ms == 1);
 }
+
+TEST_CASE("LatestFrame: timestamps travel with frames") {
+    LatestFrame lf;
+    std::atomic<bool> running{true};
+    cv::Mat m = tinyFrame(3);
+    lf.push(m, 42, false, running);
+    TimedFrame out;
+    REQUIRE(lf.tryTake(out, running));
+    CHECK(out.stream_ms == 42);
+}
