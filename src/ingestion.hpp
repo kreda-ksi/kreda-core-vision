@@ -12,6 +12,6 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
                       const std::string &rtsp_url,
                       const std::array<cv::Mat, COLUMN_CNT> &warp_matrices);
 
-bool openStream(cv::VideoCapture &cap, const std::string &url);
+bool openStream(cv::VideoCapture &cap, const std::string &url, bool is_file);
 
 } // namespace kreda

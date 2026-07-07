@@ -3,6 +3,7 @@
 #include "ingestion.hpp"
 #include "signals.hpp"
 #include <csignal>
+#include <filesystem>
 #include <format>
 #include <iostream>
 #include <opencv2/opencv.hpp>
@@ -79,6 +80,12 @@ RunConfig parseArgs(int argc, char **argv) {
         }
     }
 
+    if (std::filesystem::exists(cfg.rtsp_url)) {
+        cfg.is_file = true;
+    } else if (cfg.rtsp_url.find("://") == std::string::npos) {
+        cfg.rtsp_url = "rtsp://" + cfg.rtsp_url;
+    }
+
     if (cfg.rtsp_url.empty()) {
         std::cerr << "Missing rtsp_url.\n";
         printUsage(argv[0]);
@@ -95,7 +102,7 @@ int main(int argc, char **argv) {
     std::cout << std::format("Connecting to: {}\n", cfg.rtsp_url);
 
     cv::VideoCapture cap;
-    if (!openStream(cap, cfg.rtsp_url)) {
+    if (!openStream(cap, cfg.rtsp_url, cfg.is_file)) {
         std::cerr << "Could not open the RTSP stream. Is mediamtx running?\n";
         return ERTSP;
     }

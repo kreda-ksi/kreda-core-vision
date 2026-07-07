@@ -14,6 +14,7 @@ struct RunConfig {
     bool show_raw = true;
     bool log_enabled = true;
     bool force_recalibrate = false;
+    bool is_file = false;
     std::chrono::minutes duration{0}; // 0 => run until q
 };
 

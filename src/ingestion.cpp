@@ -38,12 +38,17 @@ struct TimedFrame {
 
 class LatestFrame {
   public:
-    void push(cv::Mat &f, std::int64_t stream_ms) {
-        {
-            const std::lock_guard<std::mutex> lock(mtx_);
-            cv::swap(frame_.frame, f);
-            frame_.stream_ms = stream_ms;
-        }
+    void push(cv::Mat &f, std::int64_t stream_ms, bool wait_if_full,
+              const std::atomic<bool> &running) {
+        std::unique_lock<std::mutex> lock(mtx_);
+        if (wait_if_full)
+            space_cv_.wait(lock, [&] { return !full_ || !running; });
+        if (!running)
+            return;
+        cv::swap(frame_.frame, f);
+        frame_.stream_ms = stream_ms;
+        full_ = true;
+        lock.unlock();
         cv_.notify_one();
     }
 
@@ -51,29 +56,37 @@ class LatestFrame {
         // NOLINTNEXTLINE(misc-const-correctness)
         std::unique_lock<std::mutex> lock(mtx_);
         if (!cv_.wait_for(lock, std::chrono::milliseconds(100),
-                          [&] { return !frame_.frame.empty() || !running; }))
+                          [&] { return full_ || !running; }))
             return false; // timeout, no frame and no caller loops
-        if (!running && frame_.frame.empty())
+        if (!full_)
             return false;
 
         cv::swap(out.frame, frame_.frame);
         out.stream_ms = frame_.stream_ms;
-
+        full_ = false;
+        lock.unlock();
+        space_cv_.notify_one();
         return true;
     }
 
-    void wake() { cv_.notify_all(); }
+    void wake() {
+        cv_.notify_all();
+        space_cv_.notify_all();
+    }
 
   private:
     TimedFrame frame_;
+    bool full_ = false;
     std::mutex mtx_;
     std::condition_variable cv_;
+    std::condition_variable space_cv_;
 };
 
-bool openStream(cv::VideoCapture &cap, const std::string &url) {
+bool openStream(cv::VideoCapture &cap, const std::string &url, bool is_file) {
     cap.release();
     cap.open(url, cv::CAP_FFMPEG);
-    cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
+    if (!is_file)
+        cap.set(cv::CAP_PROP_BUFFERSIZE, 1);
     return cap.isOpened();
 }
 
@@ -290,9 +303,9 @@ static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
     cv::imshow(std::format("KREDA column {}", track_id), display);
 }
 
-static void captureLoop(cv::VideoCapture &cap, const std::string &url,
-                        LatestFrame &shared, std::atomic<bool> &is_running,
-                        TrackLogger &logger) {
+static void captureLoop(const RunConfig &cfg, cv::VideoCapture &cap,
+                        const std::string &url, LatestFrame &shared,
+                        std::atomic<bool> &is_running, TrackLogger &logger) {
     cv::Mat temp_frame;
     unsigned int retry_cnt = 0;
     const auto capture_start = std::chrono::steady_clock::now();
@@ -305,10 +318,16 @@ static void captureLoop(cv::VideoCapture &cap, const std::string &url,
 
     while (is_running.load(std::memory_order_relaxed)) {
         if (!cap.read(temp_frame) || temp_frame.empty()) {
+            if (cfg.is_file) {
+                logger.event(0, "FILE_EOF", now_ms());
+                is_running = false;
+                break;
+            }
+
             retry_cnt++;
             if (retry_cnt >= MAX_RETRIES) {
                 logger.event(0, "STREAM_RECONNECT", now_ms());
-                openStream(cap, url);
+                openStream(cap, url, false);
                 retry_cnt = 0;
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             }
@@ -318,7 +337,11 @@ static void captureLoop(cv::VideoCapture &cap, const std::string &url,
 
         retry_cnt = 0;
 
-        shared.push(temp_frame, now_ms());
+        const std::int64_t stream_ms =
+            cfg.is_file
+                ? static_cast<std::int64_t>(cap.get(cv::CAP_PROP_POS_MSEC))
+                : now_ms();
+        shared.push(temp_frame, stream_ms, cfg.is_file, is_running);
     }
 }
 
@@ -363,10 +386,13 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     TrackLogger logger(cfg);
 
     std::thread capture_thrd(
-        [&] { captureLoop(cap, rtsp_url, shared, is_running, logger); });
+        [&] { captureLoop(cfg, cap, rtsp_url, shared, is_running, logger); });
 
     consumeLoop(cfg, shared, warp_matrices, track_states, clahe, is_running,
                 logger);
+
+    is_running = false;
+    shared.wake();
 
     // end of run flush
     for (unsigned int i{}; i < COLUMN_CNT; ++i) {
@@ -377,8 +403,6 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     }
 
     // cleanup
-    is_running = false;
-    shared.wake();
     if (capture_thrd.joinable())
         capture_thrd.join();
 }
