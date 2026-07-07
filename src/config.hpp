@@ -29,10 +29,10 @@ inline constexpr unsigned int COLUMN_CNT = 2;
 inline constexpr unsigned int POINTS_CNT = COLUMN_CNT * 4;
 
 // resolutions
-inline constexpr float CONTENT_WID = 960.0f; // saved frames
+inline constexpr float CONTENT_WID = 1920.0f; // saved frames
 inline constexpr float CONTENT_HEI = 1080.0f;
-inline constexpr float MOTION_WID = 640.0f; // detection pipeline
-inline constexpr float MOTION_HEI = 720.0f;
+inline constexpr float MOTION_WID = 960.0f; // detection pipeline
+inline constexpr float MOTION_HEI = 540.0f;
 
 inline constexpr int TOTAL_MOTION_AREA =
     static_cast<int>(MOTION_WID * MOTION_HEI);
@@ -78,6 +78,7 @@ inline constexpr int PRE_SLIDE_BUFFER_FRAMES =
     60; // ring buffer depth for slide lookback
 inline constexpr unsigned int SLIDE_LOOKBACK_FRAMES =
     7; // how far pre-slide the lookback save reaches
+inline constexpr float GRID_DECAY = 0.98f;
 
 // stream
 inline constexpr unsigned int MAX_RETRIES = 30;

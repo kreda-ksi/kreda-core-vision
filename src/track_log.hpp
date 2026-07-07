@@ -141,7 +141,7 @@ class SidecarLogger {
         for (int r{}; r < grid.rows; ++r) {
             out += "      [";
             for (int c{}; c < grid.cols; ++c) {
-                const int val = grid.at<std::uint8_t>(r, c) > GRID_CELL_ACTIVE;
+                const int val = grid.at<std::uint8_t>(r, c) / 26;
                 out += std::to_string(val);
                 if (c < grid.cols - 1)
                     out += ", ";
