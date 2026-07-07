@@ -53,7 +53,6 @@ class LatestFrame {
     }
 
     bool tryTake(TimedFrame &out, const std::atomic<bool> &running) {
-        // NOLINTNEXTLINE(misc-const-correctness)
         std::unique_lock<std::mutex> lock(mtx_);
         if (!cv_.wait_for(lock, std::chrono::milliseconds(100),
                           [&] { return full_ || !running; }))
