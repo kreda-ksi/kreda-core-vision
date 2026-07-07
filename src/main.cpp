@@ -80,16 +80,14 @@ RunConfig parseArgs(int argc, char **argv) {
         }
     }
 
-    if (std::filesystem::exists(cfg.rtsp_url)) {
-        cfg.is_file = true;
-    } else if (cfg.rtsp_url.find("://") == std::string::npos) {
-        cfg.rtsp_url = "rtsp://" + cfg.rtsp_url;
-    }
-
     if (cfg.rtsp_url.empty()) {
         std::cerr << "Missing rtsp_url.\n";
         printUsage(argv[0]);
         exit(EARG);
+    } else if (std::filesystem::exists(cfg.rtsp_url)) {
+        cfg.is_file = true;
+    } else if (cfg.rtsp_url.find("://") == std::string::npos) {
+        cfg.rtsp_url = "rtsp://" + cfg.rtsp_url;
     }
 
     return cfg;
