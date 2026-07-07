@@ -38,7 +38,7 @@ inline constexpr int CONTENT_THRESH_INTENSITY =
     MOTION_THRESH_INTENSITY; // kept as separate for potential fine-tuning
 inline constexpr int MOTION_TRIGGER_PXS =
     1000; // how many pxs must change to trigger movement
-inline constexpr int SLIDE_TRIGGER_PXS = static_cast<int>(TOTAL_AREA * 0.2);
+inline constexpr int SLIDE_TRIGGER_PXS = static_cast<int>(TOTAL_AREA * 0.08);
 inline constexpr int MAX_STROKE_COMP_AREA = static_cast<int>(TOTAL_AREA * 0.02);
 inline constexpr unsigned int MOTION_HIST_FRAMES = 5;
 inline constexpr int STATE_CHANGE_PXS =
