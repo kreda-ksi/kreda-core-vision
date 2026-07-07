@@ -38,11 +38,11 @@ struct TimedFrame {
 
 class LatestFrame {
   public:
-    void push(TimedFrame &&tf) {
+    void push(cv::Mat &f, std::int64_t stream_ms) {
         {
             const std::lock_guard<std::mutex> lock(mtx_);
-            cv::swap(frame_.frame, tf.frame);
-            frame_.stream_ms = tf.stream_ms;
+            cv::swap(frame_.frame, f);
+            frame_.stream_ms = stream_ms;
         }
         cv_.notify_one();
     }
@@ -304,8 +304,6 @@ static void captureLoop(cv::VideoCapture &cap, const std::string &url,
     };
 
     while (is_running.load(std::memory_order_relaxed)) {
-        // temp_frame is swapped via cv::swap. post-push state is a valid Mat.
-        // NOLINTNEXTLINE(bugprone-use-after-move)
         if (!cap.read(temp_frame) || temp_frame.empty()) {
             retry_cnt++;
             if (retry_cnt >= MAX_RETRIES) {
@@ -320,7 +318,7 @@ static void captureLoop(cv::VideoCapture &cap, const std::string &url,
 
         retry_cnt = 0;
 
-        shared.push({std::move(temp_frame), now_ms()});
+        shared.push(temp_frame, now_ms());
     }
 }
 
