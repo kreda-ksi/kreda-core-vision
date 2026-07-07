@@ -60,29 +60,27 @@ RunConfig parseArgs(int argc, char **argv) {
         } else if (arg == "--log-file" || arg == "-lf") {
             cfg.log_file = next_val(i, arg);
         } else if (arg == "--duration" || arg == "-d") {
-            int mins = std::atoi(next_val(i, arg));
+            const long mins = std::strtol(next_val(i, arg), nullptr, 10);
             if (mins <= 0) {
-                std::cerr << "--duration must be a positive integer."
-                          << std::endl;
+                std::cerr << "--duration must be a positive integer.\n";
                 exit(EARG);
             }
             cfg.duration = std::chrono::minutes(mins);
         } else if (arg.starts_with("--")) {
-            std::cerr << std::format("Unknown option: {}", arg) << std::endl;
+            std::cerr << std::format("Unknown option: {}\n", arg);
             printUsage(argv[0]);
             exit(EARG);
         } else if (cfg.rtsp_url.empty()) {
             cfg.rtsp_url = arg;
         } else {
-            std::cerr << std::format("Unexpected argument: {}", arg)
-                      << std::endl;
+            std::cerr << std::format("Unexpected argument: {}\n", arg);
             printUsage(argv[0]);
             exit(EARG);
         }
     }
 
     if (cfg.rtsp_url.empty()) {
-        std::cerr << "Missing rtsp_url." << std::endl;
+        std::cerr << "Missing rtsp_url.\n";
         printUsage(argv[0]);
         exit(EARG);
     }
@@ -94,16 +92,16 @@ int main(int argc, char **argv) {
     auto cfg = parseArgs(argc, argv);
     installSigHandlers();
 
-    std::cout << std::format("Connecting to: {}", cfg.rtsp_url) << std::endl;
+    std::cout << std::format("Connecting to: {}\n", cfg.rtsp_url);
 
     cv::VideoCapture cap;
     if (!openStream(cap, cfg.rtsp_url)) {
-        std::cerr << "Could not open the RTSP stream. Is mediamtx running?"
-                  << std::endl;
+        std::cerr << "Could not open the RTSP stream. Is mediamtx running?\n";
         return ERTSP;
     }
 
-    std::array<cv::Mat, COLUMN_CNT> warp_matrices = runCalibration(cfg, cap);
+    const std::array<cv::Mat, COLUMN_CNT> warp_matrices =
+        runCalibration(cfg, cap);
     runIngestionLoop(cfg, cap, cfg.rtsp_url, warp_matrices);
 
     // cleanup

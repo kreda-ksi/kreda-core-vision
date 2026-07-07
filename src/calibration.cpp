@@ -8,29 +8,27 @@
 
 namespace kreda {
 
-static void onMouseClick(int event, int x, int y, int flags, void *userdata) {
+static void onMouseClick(int event, int x, int y, int /*flags*/,
+                         void *userdata) {
     auto *points = static_cast<std::vector<cv::Point2f> *>(userdata);
 
     if (event == cv::EVENT_LBUTTONDOWN) {
         if (points->size() < POINTS_CNT) {
             points->push_back(
                 cv::Point2f(static_cast<float>(x), static_cast<float>(y)));
-            std::cout << std::format("Point {}/{} recorded at ({},{})",
-                                     points->size(), POINTS_CNT, x, y)
-                      << std::endl;
+            std::cout << std::format("Point {}/{} recorded at ({},{})\n",
+                                     points->size(), POINTS_CNT, x, y);
         } else {
-            std::cout
-                << std::format(
-                       "All {} points recorded. Press any key to continue.",
-                       POINTS_CNT)
-                << std::endl;
+            std::cout << std::format(
+                "All {} points recorded. Press any key to continue.\n",
+                POINTS_CNT);
         }
     }
 }
 
 static bool loadCalibration(const RunConfig &cfg,
                             std::array<cv::Mat, COLUMN_CNT> &warps) {
-    cv::FileStorage fs(cfg.calib_file, cv::FileStorage::READ);
+    const cv::FileStorage fs(cfg.calib_file, cv::FileStorage::READ);
     if (!fs.isOpened())
         return false;
 
@@ -38,8 +36,7 @@ static bool loadCalibration(const RunConfig &cfg,
         fs[std::format("track_{}", i)] >> warps[i];
         if (warps[i].empty()) {
             std::cout << "Calibration file invalid or outdated. Running manual "
-                         "calibration."
-                      << std::endl;
+                         "calibration.\n";
             return false;
         }
     }
@@ -55,9 +52,8 @@ static void saveCalibration(const RunConfig &cfg,
 
     cv::FileStorage fs(cfg.calib_file, cv::FileStorage::WRITE);
     if (!fs.isOpened()) {
-        std::cerr << std::format("Could not open {} for writing.",
-                                 cfg.calib_file)
-                  << std::endl;
+        std::cerr << std::format("Could not open {} for writing.\n",
+                                 cfg.calib_file);
         return;
     }
 
@@ -107,7 +103,7 @@ collectPointsInteractively(const cv::Mat &frame) {
 
 static std::array<cv::Mat, COLUMN_CNT>
 computeWarps(const std::vector<cv::Point2f> &src_points) {
-    std::vector<cv::Point2f> dst_points = {
+    const std::vector<cv::Point2f> dst_points = {
         cv::Point2f(0, 0),
         cv::Point2f(OUT_WID, 0),
         cv::Point2f(OUT_WID, OUT_HEI),
@@ -115,9 +111,9 @@ computeWarps(const std::vector<cv::Point2f> &src_points) {
     };
 
     std::array<cv::Mat, COLUMN_CNT> warps;
-    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
-        std::vector<cv::Point2f> track_src(src_points.begin() + i * 4,
-                                           src_points.begin() + (i + 1) * 4);
+    for (std::size_t i{}; i < COLUMN_CNT; ++i) {
+        const std::vector<cv::Point2f> track_src(
+            src_points.begin() + i * 4, src_points.begin() + (i + 1) * 4);
         warps[i] = cv::getPerspectiveTransform(track_src, dst_points);
     }
 
@@ -139,7 +135,7 @@ static bool estimateDrift(const cv::Mat &ref, const cv::Mat &curr, cv::Mat &H) {
     if (desc_ref.empty() || desc_curr.empty())
         return false;
 
-    cv::BFMatcher matcher(cv::NORM_HAMMING);
+    const cv::BFMatcher matcher(cv::NORM_HAMMING);
     std::vector<std::vector<cv::DMatch>> knn;
     matcher.knnMatch(desc_curr, desc_ref, knn, 2);
 
@@ -160,9 +156,8 @@ static bool estimateDrift(const cv::Mat &ref, const cv::Mat &curr, cv::Mat &H) {
 
     int inliers = cv::countNonZero(inlier_mask);
     if (inliers < DRIFT_MIN_INLIERS) {
-        std::cerr << std::format("Drift estimation rejected, {} inliers.",
-                                 inliers)
-                  << std::endl;
+        std::cerr << std::format("Drift estimation rejected, {} inliers.\n",
+                                 inliers);
         return false;
     }
 
@@ -171,16 +166,14 @@ static bool estimateDrift(const cv::Mat &ref, const cv::Mat &curr, cv::Mat &H) {
 
 static bool validateDrift(const cv::Mat &H, const cv::Size &frame_size) {
     // scale check via sqrt(|det|) of the upper-left 2x2
-    double det = H.at<double>(0, 0) * H.at<double>(1, 1) -
-                 H.at<double>(0, 1) * H.at<double>(1, 0);
-    double scale = std::sqrt(std::abs(det));
+    const double det = H.at<double>(0, 0) * H.at<double>(1, 1) -
+                       H.at<double>(0, 1) * H.at<double>(1, 0);
+    const double scale = std::sqrt(std::abs(det));
 
     if (std::abs(scale - 1.0) > DRIFT_MAX_SCALE_DEV)
-        std::cout
-            << std::format(
-                   "zoom drift {:+.0f}%, output quality might be degraded.",
-                   (scale - 1.0) * 100.0)
-            << std::endl;
+        std::cout << std::format(
+            "zoom drift {:+.0f}%, output quality might be degraded.\n",
+            (scale - 1.0) * 100.0);
 
     // 50%+ zoom is not drift
     if (std::abs(scale - 1.0) > 0.5)
@@ -192,7 +185,7 @@ static bool validateDrift(const cv::Mat &H, const cv::Size &frame_size) {
         return false;
 
     // frame corners must be roughly inside
-    std::vector<cv::Point2f> corners = {
+    const std::vector<cv::Point2f> corners = {
         {0.0f, 0.0f},
         {static_cast<float>(frame_size.width), 0.0f},
         {static_cast<float>(frame_size.width),
@@ -212,7 +205,7 @@ static bool validateDrift(const cv::Mat &H, const cv::Size &frame_size) {
 static bool applyDriftCorrection(const RunConfig &cfg,
                                  std::array<cv::Mat, COLUMN_CNT> &warps,
                                  cv::VideoCapture &cap) {
-    cv::Mat ref = cv::imread(cfg.ref_file);
+    const cv::Mat ref = cv::imread(cfg.ref_file);
     if (ref.empty())
         return false;
 
@@ -228,7 +221,7 @@ static bool applyDriftCorrection(const RunConfig &cfg,
 
     for (auto &w : warps)
         w = w * H;
-    std::cout << "Calibration drift-corrected." << std::endl;
+    std::cout << "Calibration drift-corrected.\n";
     return true;
 }
 
@@ -239,20 +232,17 @@ std::array<cv::Mat, COLUMN_CNT> runCalibration(const RunConfig &cfg,
     if (loadCalibration(cfg, warps) && !cfg.force_recalibrate) {
         if (!applyDriftCorrection(cfg, warps, cap))
             std::cout
-                << "Drift correction unavailable, using stored calibration."
-                << std::endl;
+                << "Drift correction unavailable, using stored calibration.\n";
         return warps;
     }
     if (!cfg.show_gui) {
-        std::cerr << "Headless mode requires an existing calibration file."
-                  << std::endl;
+        std::cerr << "Headless mode requires an existing calibration file.\n";
         exit(ECAL);
     }
 
     cv::Mat frame;
     if (!cap.read(frame) || frame.empty()) {
-        std::cerr << "Failed to grab the first frame for calibration."
-                  << std::endl;
+        std::cerr << "Failed to grab the first frame for calibration.\n";
         exit(ECAL);
     }
 

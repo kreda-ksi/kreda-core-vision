@@ -37,12 +37,12 @@ inline void drawHud(cv::Mat *display, const FrameTelemetry &t) {
                 cv::Point(10, 46), cv::FONT_HERSHEY_SIMPLEX, 0.5,
                 cv::Scalar(255, 255, 255), 1);
 
-    int bar_w = static_cast<int>(
+    const int bar_w = static_cast<int>(
         display->cols * std::min(1.0, double(t.changed) / SLIDE_TRIGGER_PXS));
     cv::rectangle(*display, cv::Point(0, 54), cv::Point(bar_w, 58), col,
                   cv::FILLED);
 
-    int tick_x = static_cast<int>(
+    const int tick_x = static_cast<int>(
         display->cols * (double(MOTION_TRIGGER_PXS) / SLIDE_TRIGGER_PXS));
     cv::line(*display, cv::Point(tick_x, 52), cv::Point(tick_x, 58),
              cv::Scalar(255, 255, 255), 1);

@@ -22,7 +22,7 @@ class TrackLogger {
         TrackData &prev = last_[t.track_id];
         auto now = std::chrono::steady_clock::now();
 
-        bool should_update =
+        const bool should_update =
             !prev.valid || t.is_moving != prev.t.is_moving ||
             t.is_sliding != prev.t.is_sliding ||
             t.slide_recover != prev.t.slide_recover ||
