@@ -271,6 +271,7 @@ static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
 
     if (!cfg.show_gui) {
         evaluateAndExtract(cfg, dewarped, final, state, track_id, nullptr);
+        return;
     }
 
     cv::Mat display;
