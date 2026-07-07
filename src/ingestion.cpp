@@ -341,16 +341,13 @@ static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
                               track_states[i], i, clahe, local.stream_ms,
                               logger);
 
-        if (cfg.show_gui) {
-            if (cv::pollKey() == 'q')
-                is_running = false;
-        } else {
-            if (g_signal_stop.load())
-                is_running = false;
-            if (cfg.duration.count() > 0 &&
-                std::chrono::steady_clock::now() - run_start > cfg.duration)
-                is_running = false;
-        }
+        if (cfg.show_gui && cv::pollKey() == 'q')
+            is_running = false;
+        if (g_signal_stop.load())
+            is_running = false;
+        if (cfg.duration.count() > 0 &&
+            std::chrono::steady_clock::now() - run_start > cfg.duration)
+            is_running = false;
     }
 }
 
