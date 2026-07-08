@@ -25,3 +25,11 @@ TEST_CASE("grid: thin edge-band slide activates every column") {
                   cv::Scalar(255), cv::FILLED);
     CHECK(countActiveColumns(gridOccupancy(mask)) == GRID_COLS);
 }
+
+TEST_CASE("grid: centered person blob stays under the veto line") {
+    cv::Mat mask = motionMask();
+    cv::rectangle(mask, cv::Point(490, 135),
+                  cv::Point(490 + MOTION_WID / 4, 135 + MOTION_WID / 2),
+                  cv::Scalar(255), cv::FILLED);
+    CHECK(countActiveColumns(gridOccupancy(mask)) < SLIDE_MIN_ACTIVE_COLS);
+}
