@@ -30,7 +30,7 @@ inline constexpr unsigned int COLUMN_CNT = 2;
 inline constexpr unsigned int POINTS_CNT = COLUMN_CNT * 4;
 
 // resolutions
-inline constexpr float CONTENT_RES_SCALE = 1.00f;
+inline constexpr float CONTENT_RES_SCALE = 1.50f;
 inline constexpr float MOTION_WID = 960.0f; // detection pipeline
 inline constexpr float MOTION_HEI = 540.0f;
 
