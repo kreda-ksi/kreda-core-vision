@@ -5,7 +5,7 @@ Watches a camera stream pointed at sliding chalkboards, detects when board conte
 The output is then passed to a pipeline that generates [Typst](https://github.com/typst/typst) lecture notes (see [kreda-orchestrator](https://github.com/kreda-ksi/kreda-orchestrator)).
 
 KREDA consists of three main parts:
-- **core-vision** (this repo, C++/OpenCV) captures footage,
+- **kreda-core-vision** (this repo, C++/OpenCV) captures footage,
 - **[kreda-orchestrator](https://github.com/kreda-ksi/kreda-orchestrator)** (Python) dedupes, transcribes via VLM, and synthesizes notes,
 - **[kreda-datasets](https://github.com/kreda-ksi/kreda-datasets)** holds test footage.
 
@@ -30,6 +30,12 @@ Motion is measured against an exponentially-smoothed reference, a state machine 
 A body-masking filter (connected-component analysis) distinguishes lecturer-sized change from chalk-stroke sized change, so saves are gated on chalk, not motion.
 Occluded frames are also saved, to ensure no data loss over precision. 
 The orchestrator's dedup picks clean frames.
+
+## Preview (GUI mode)
+
+<video src="docs/before.mp4" controls="controls" muted="muted" style="max-width: 100%;"></video>
+
+<video src="docs/after.mp4" controls="controls" muted="muted" style="max-width: 100%;"></video>
 
 ## Setup and calibration
 
