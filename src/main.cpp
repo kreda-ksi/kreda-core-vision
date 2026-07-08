@@ -12,6 +12,7 @@ using namespace kreda;
 
 int main(int argc, char **argv) {
     auto cfg = parseArgs(argc, argv);
+    resolveRunDir(cfg);
     installSigHandlers();
 
     std::cout << std::format("Connecting to: {}\n", cfg.rtsp_url);

@@ -2,6 +2,7 @@
 #include "config.hpp"
 #include <chrono>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <format>
 #include <iostream>
@@ -94,6 +95,20 @@ RunConfig parseArgs(int argc, char **argv) {
     }
 
     return cfg;
+}
+
+void resolveRunDir(RunConfig &cfg) {
+    const auto now = std::chrono::system_clock::now();
+    const auto t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm{};
+    localtime_r(&t, &tm);
+    cfg.run_dir = std::format("{}/run_{:04}{:02}{:02}_{:02}{:02}{:02}",
+                              cfg.out_dir, tm.tm_year + 1900, tm.tm_mon + 1,
+                              tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    std::filesystem::create_directories(cfg.run_dir);
+
+    cfg.log_file = cfg.run_dir + "/" + cfg.log_file;
+    cfg.grid_file = cfg.run_dir + "/" + cfg.grid_file;
 }
 
 } // namespace kreda

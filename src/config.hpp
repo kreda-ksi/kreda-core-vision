@@ -7,10 +7,11 @@ namespace kreda {
 struct RunConfig {
     std::string rtsp_url;
     std::string calib_file = "calibration.xml";
-    std::string out_dir = "staging";
-    std::string log_file = "run.csv";
+    std::string out_dir = "staging";  // parent, run_dir created inside
+    std::string log_file = "run.csv"; // path relative to run_dir
     std::string ref_file = "calibration_ref.png";
     std::string grid_file = "grid.json";
+    std::string run_dir; // resolved at startup
     bool show_gui = true;
     bool show_raw = true;
     bool log_enabled = true;

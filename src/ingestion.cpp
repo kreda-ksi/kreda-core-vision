@@ -72,7 +72,7 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
     }
 
     const std::string filename = std::format(
-        "{}/track_{}_{}_{}.png", cfg.out_dir, track_id, stream_ms, reason);
+        "{}/track_{}_{}_{}.png", cfg.run_dir, track_id, stream_ms, reason);
     cv::imwrite(filename, frame);
 
     logger.event(track_id, std::format("SAVE_{}_{}", reason, raw_pxs),
