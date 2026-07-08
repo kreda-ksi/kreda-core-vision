@@ -101,3 +101,15 @@ Each frame stores:
 - `timestamp_ms` - its timestamp (time relative to run start),
 - `event_type` - as the name suggests - the type of the event that occured on that frame,
 - `occupancy_grid` - the actual grid data, where each cell is a value from 0-9 (quantized from 0-255).
+
+## Development
+
+```bash
+cmake -B build && cmake --build build # build
+ctest --test-dir build -j             # unit tests
+run-clang-tidy -p build               # lint
+find src -name '*.cpp' -o -name '*.hpp' \
+    | xargs clang-format --dry-run -Werror # format
+```
+
+CI enforces format (via `clang-format`), lint (via `clang-tidy`), and build+test on Ubuntu.
