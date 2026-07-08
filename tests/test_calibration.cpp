@@ -25,3 +25,9 @@ TEST_CASE("warps: content warp maps clicked corners to output corners") {
     CHECK(dst[2].y == doctest::Approx(CONTENT_HEI).epsilon(0.01));
     CHECK(dst[3].x == doctest::Approx(0).epsilon(0.01));
 }
+
+TEST_CASE("warps: content and motion sets differ per column") {
+    const WarpSet ws = computeWarps(twoColPoints());
+    for (unsigned int i{}; i < COLUMN_CNT; ++i)
+        CHECK(cv::norm(ws.content[i], ws.motion[i], cv::NORM_INF) > 1e-9);
+}
