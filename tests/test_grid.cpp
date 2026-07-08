@@ -81,3 +81,13 @@ TEST_CASE("decay: cell decays by GRID_DECAY^n over n quiet frames") {
     const float expected = 200.0f * std::pow(GRID_DECAY, 30.0f);
     CHECK(decayed.at<float>(5, 5) == doctest::Approx(expected).epsilon(0.01));
 }
+
+TEST_CASE("decay: fresh activity overrides decayed value per-cell") {
+    cv::Mat decayed(GRID_ROWS, GRID_COLS, CV_32F, cv::Scalar(50.0f));
+    cv::Mat grid = cv::Mat::zeros(GRID_ROWS, GRID_COLS, CV_8U);
+    grid.at<std::uint8_t>(2, 2) = 180;
+    updateDecayedGrid(decayed, grid);
+
+    CHECK(decayed.at<float>(2, 2) == doctest::Approx(180.0f));
+    CHECK(decayed.at<float>(3, 3) == doctest::Approx(50.0f * GRID_DECAY));
+}
