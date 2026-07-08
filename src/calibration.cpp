@@ -106,23 +106,48 @@ collectPointsInteractively(const cv::Mat &frame) {
     return src_points;
 }
 
-static std::array<cv::Mat, COLUMN_CNT>
-warpsFor(const std::vector<cv::Point2f> &src_points, float w, float h) {
-    const std::vector<cv::Point2f> dst = {{0, 0}, {w, 0}, {w, h}, {0, h}};
-    std::array<cv::Mat, COLUMN_CNT> warps;
+static cv::Size contentDimsFor(const std::vector<cv::Point2f> &quad) {
+    const double top = cv::norm(quad[1] - quad[0]);
+    const double bot = cv::norm(quad[2] - quad[3]);
+    const double left = cv::norm(quad[3] - quad[0]);
+    const double right = cv::norm(quad[2] - quad[1]);
 
-    for (std::size_t i{}; i < COLUMN_CNT; ++i) {
-        const std::vector<cv::Point2f> track_src(
-            src_points.begin() + i * 4, src_points.begin() + (i + 1) * 4);
-        warps[i] = cv::getPerspectiveTransform(track_src, dst);
-    }
+    const double w = std::max(top, bot) * CONTENT_RES_SCALE;
+    const double h = std::max(left, right) * CONTENT_RES_SCALE;
 
-    return warps;
+    return {static_cast<int>(std::round(w / 2) * 2),
+            static_cast<int>(std::round(h / 2) * 2)};
+}
+
+static cv::Mat warpFor(const std::vector<cv::Point2f> &quad,
+                       const cv::Size &dims) {
+    const std::vector<cv::Point2f> dst = {
+        {0, 0},
+        {static_cast<float>(dims.width), 0},
+        {static_cast<float>(dims.width), static_cast<float>(dims.height)},
+        {0, static_cast<float>(dims.height)}};
+
+    return cv::getPerspectiveTransform(quad, dst);
 }
 
 WarpSet computeWarps(const std::vector<cv::Point2f> &src_points) {
-    return {warpsFor(src_points, CONTENT_WID, CONTENT_HEI),
-            warpsFor(src_points, MOTION_WID, MOTION_HEI)};
+    WarpSet ws;
+    const cv::Size motion_dims(static_cast<int>(MOTION_WID),
+                               static_cast<int>(MOTION_HEI));
+
+    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
+        const std::vector<cv::Point2f> quad(src_points.begin() + i * 4,
+                                            src_points.begin() + (i + 1) * 4);
+        ws.content_dims[i] = contentDimsFor(quad);
+        ws.content[i] = warpFor(quad, ws.content_dims[i]);
+        ws.motion[i] = warpFor(quad, motion_dims);
+
+        std::cout << std::format("col {}: content {}x{} (scale {})\n", i,
+                                 ws.content_dims[i].width,
+                                 ws.content_dims[i].height, CONTENT_RES_SCALE);
+    }
+
+    return ws;
 }
 
 // H maps current frame coords -> ref frame coords

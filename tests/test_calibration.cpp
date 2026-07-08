@@ -21,8 +21,8 @@ TEST_CASE("warps: content warp maps clicked corners to output corners") {
 
     CHECK(dst[0].x == doctest::Approx(0).epsilon(0.01));
     CHECK(dst[0].y == doctest::Approx(0).epsilon(0.01));
-    CHECK(dst[1].x == doctest::Approx(CONTENT_WID).epsilon(0.01));
-    CHECK(dst[2].y == doctest::Approx(CONTENT_HEI).epsilon(0.01));
+    CHECK(dst[1].x == doctest::Approx(ws.content_dims[0].width).epsilon(0.01));
+    CHECK(dst[2].y == doctest::Approx(ws.content_dims[0].height).epsilon(0.01));
     CHECK(dst[3].x == doctest::Approx(0).epsilon(0.01));
 }
 

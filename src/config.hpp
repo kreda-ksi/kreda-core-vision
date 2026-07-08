@@ -30,15 +30,12 @@ inline constexpr unsigned int COLUMN_CNT = 2;
 inline constexpr unsigned int POINTS_CNT = COLUMN_CNT * 4;
 
 // resolutions
-inline constexpr float CONTENT_WID = 1920.0f; // saved frames
-inline constexpr float CONTENT_HEI = 1080.0f;
+inline constexpr float CONTENT_RES_SCALE = 1.00f;
 inline constexpr float MOTION_WID = 960.0f; // detection pipeline
 inline constexpr float MOTION_HEI = 540.0f;
 
 inline constexpr int TOTAL_MOTION_AREA =
     static_cast<int>(MOTION_WID * MOTION_HEI);
-inline constexpr int TOTAL_CONTENT_AREA =
-    static_cast<int>(CONTENT_WID * CONTENT_HEI);
 
 // motion path
 inline constexpr int MOTION_THRESH_INTENSITY =
@@ -55,13 +52,14 @@ inline constexpr double MOTION_REF_ALPHA =
 // content path
 inline constexpr int CONTENT_THRESH_INTENSITY =
     MOTION_THRESH_INTENSITY; // kept as separate for potential fine-tuning
-inline constexpr int STATE_CHANGE_PXS = static_cast<int>(
-    TOTAL_CONTENT_AREA *
-    0.015); // how many pxs must differ from the last saved board
-inline constexpr int LAST_CHANCE_PXS =
-    static_cast<int>(TOTAL_CONTENT_AREA * 0.0015); // slide + final flush save
-inline constexpr int MAX_STROKE_COMP_AREA = static_cast<int>(
-    TOTAL_CONTENT_AREA * 0.02); // body-vs-stroke ceiling for chalk masking
+inline constexpr double STATE_CHANGE_FRAC =
+    0.015; // how many % of the content frame must differ from the last saved
+           // board
+inline constexpr double LAST_CHANCE_FRAC =
+    0.0015; // -//- slide + final flush save
+inline constexpr double MAX_STROKE_COMP_FRAC =
+    0.02; // body-vs-stroke ceiling for chalk masking (in % area of content
+          // frame)
 
 // grid
 inline constexpr int GRID_COLS = static_cast<int>(MOTION_WID / 80.0f);

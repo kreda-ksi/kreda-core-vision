@@ -27,6 +27,10 @@ struct TrackState {
     std::int64_t last_save_ms = -1;
     std::int64_t last_seen_ms = -1;
 
+    int state_change_pxs = 0;
+    int last_chance_pxs = 0;
+    int max_stroke_comp_area = 0;
+
     int still_cnt = 0;
     bool slide_recover = false;
     int recover_cooldown = 0;
@@ -63,7 +67,7 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
 
     const int raw_pxs = cv::countNonZero(cthresh);
 
-    const int chalk_pxs = countChalkPixels(cthresh, MAX_STROKE_COMP_AREA);
+    const int chalk_pxs = countChalkPixels(cthresh, state.max_stroke_comp_area);
 
     if (chalk_pxs <= threshold) {
         logger.event(track_id, std::format("SKIP_{}_{}", reason, raw_pxs),
@@ -155,8 +159,8 @@ static void updateActivityState(const RunConfig &cfg,
                 : 0;
         const cv::Mat &old_frame = state.history_buff[idx];
 
-        saveIfChanged(cfg, old_frame, state, track_id, "slide", LAST_CHANCE_PXS,
-                      stream_ms, logger, sidecar);
+        saveIfChanged(cfg, old_frame, state, track_id, "slide",
+                      state.last_chance_pxs, stream_ms, logger, sidecar);
 
         state.slide_recover = true;
         state.recover_cooldown = 0;
@@ -167,7 +171,7 @@ static void updateActivityState(const RunConfig &cfg,
         state.was_active = true;
     } else if (state.was_active && ++state.still_cnt >= STILL_COOLDOWN) {
         saveIfChanged(cfg, content_frame, state, track_id, "still",
-                      STATE_CHANGE_PXS, stream_ms, logger, sidecar);
+                      state.state_change_pxs, stream_ms, logger, sidecar);
         state.still_cnt = 0;
         state.was_active = false;
     }
@@ -222,7 +226,7 @@ static void evaluateAndExtract(const RunConfig &cfg,
     if (stream_ms - state.last_save_ms >
         std::chrono::milliseconds(SNAPSHOT_INTERVAL).count()) {
         saveIfChanged(cfg, content_frame, state, track_id, "periodic",
-                      STATE_CHANGE_PXS, stream_ms, logger, sidecar);
+                      state.state_change_pxs, stream_ms, logger, sidecar);
         state.last_save_ms = stream_ms;
     }
 
@@ -233,7 +237,7 @@ static void evaluateAndExtract(const RunConfig &cfg,
 static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
                           const cv::Mat &content_warp,
                           const cv::Mat &motion_warp, TrackState &state,
-                          unsigned int track_id,
+                          unsigned int track_id, cv::Size dims,
                           const cv::Ptr<cv::CLAHE> &clahe,
                           std::int64_t stream_ms, TrackLogger &logger,
                           SidecarLogger &sidecar) {
@@ -242,7 +246,7 @@ static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
     // homography
     cv::warpPerspective(
         frame, content_raw, content_warp,
-        cv::Size(static_cast<int>(CONTENT_WID), static_cast<int>(CONTENT_HEI)),
+        cv::Size(static_cast<int>(dims.width), static_cast<int>(dims.height)),
         cv::INTER_CUBIC);
     cv::warpPerspective(
         frame, motion_raw, motion_warp,
@@ -329,8 +333,9 @@ static void consumeLoop(const RunConfig &cfg, LatestFrame &shared,
         if (have_frame)
             for (unsigned int i{}; i < COLUMN_CNT; ++i)
                 processColumn(cfg, local.frame, warps.content[i],
-                              warps.motion[i], track_states[i], i, clahe,
-                              local.stream_ms, logger, sidecar);
+                              warps.motion[i], track_states[i], i,
+                              warps.content_dims[i], clahe, local.stream_ms,
+                              logger, sidecar);
 
         if (cfg.show_gui && cv::pollKey() == 'q')
             is_running = false;
@@ -355,6 +360,17 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     TrackLogger logger(cfg);
     SidecarLogger sidecar(cfg);
 
+    for (unsigned int i{}; i < COLUMN_CNT; ++i) {
+        const double area = static_cast<double>(warps.content_dims[i].area());
+
+        track_states[i].state_change_pxs =
+            static_cast<int>(area * STATE_CHANGE_FRAC);
+        track_states[i].last_chance_pxs =
+            static_cast<int>(area * LAST_CHANCE_FRAC);
+        track_states[i].max_stroke_comp_area =
+            static_cast<int>(area * MAX_STROKE_COMP_FRAC);
+    }
+
     std::thread capture_thrd(
         [&] { captureLoop(cfg, cap, rtsp_url, shared, is_running, logger); });
 
@@ -369,7 +385,8 @@ void runIngestionLoop(const RunConfig &cfg, cv::VideoCapture &cap,
         TrackState &state = track_states[i];
         if (!state.history_buff.empty() && !state.last_saved_frame.empty())
             saveIfChanged(cfg, state.history_buff.back(), state, i, "final",
-                          LAST_CHANCE_PXS, state.last_seen_ms, logger, sidecar);
+                          state.last_chance_pxs, state.last_seen_ms, logger,
+                          sidecar);
     }
 
     // cleanup
