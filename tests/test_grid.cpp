@@ -67,3 +67,17 @@ TEST_CASE("decay: constant input is a fixed point (no drift under activity)") {
         updateDecayedGrid(decayed, grid);
     CHECK(decayed.at<float>(0, 0) == 100.0f);
 }
+
+TEST_CASE("decay: cell decays by GRID_DECAY^n over n quiet frames") {
+    cv::Mat decayed;
+    cv::Mat seed = cv::Mat::zeros(GRID_ROWS, GRID_COLS, CV_8U);
+    seed.at<std::uint8_t>(5, 5) = 200;
+    updateDecayedGrid(decayed, seed);
+
+    const cv::Mat quiet = cv::Mat::zeros(GRID_ROWS, GRID_COLS, CV_8U);
+    for (int i = 0; i < 30; ++i)
+        updateDecayedGrid(decayed, quiet);
+
+    const float expected = 200.0f * std::pow(GRID_DECAY, 30.0f);
+    CHECK(decayed.at<float>(5, 5) == doctest::Approx(expected).epsilon(0.01));
+}
