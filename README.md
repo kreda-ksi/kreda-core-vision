@@ -1,4 +1,4 @@
-# kreda-core-vision
+# kreda-core-vision ξ
 
 Chalkboard lecture capture engine.
 Watches a camera stream pointed at sliding chalkboards, detects when board content changes, and saves each distinct board state as an image.
@@ -20,6 +20,7 @@ KREDA consists of three main parts:
 
 One capture thread reads the stream (RTSP or file), one processing thread consumes frames through a depth-1 queue (latest wins live, lossless for files).
 Each frame is dewarped per board column at two resolutions, a high-res content path for saved images and a motion path for detection.
+The content path is derived from calibration geometry at startup.
 Motion is measured against an exponentially-smoothed reference, a state machine decides saves:
 
 - **periodic** - every `n` seconds if chalk content changed,
@@ -50,6 +51,7 @@ To set up the engine, first run in a new room opens a calibration window.
 Click 4 corners per board column (top-left, top-right, bottom-right, bottom-left).
 Clicks are stored (default: `calibration.xml`) with a reference frame (default: `calibration_ref.png`), warp matrices are derived at load.
 Subsequent startups self-correct small camera drift (ORB + RANSAC homography against the reference) and refuse loudly on large changes (in that case, re-run with `-rc/--recalibrate`).
+If the camera's resolution changes, the engine refuses the stored calibration and reruns manual calibration.
 
 ## Usage
 
@@ -57,18 +59,18 @@ Subsequent startups self-correct small camera drift (ORB + RANSAC homography aga
 ./kreda_vision_engine [OPTIONS] <rtsp-url | video-file>
 ```
 
-| Flag                 | Abbreviation | Effect                                   |
-| :---                 | :---:        | :---:                                    |
-| `--headless`         | `-h`         | no GUI, requires existing calibration    |
-| `--no-raw`           | `-nr`        | suppress raw debug windows               |
-| `--no-log`           | `-nl`        | disable CSV/sidecar telemetry            |
-| `--calib <path>`     | `-c <path>`  | override calibration file path           |
-| `--out <path>`       | `-o <path>`  | override output directory path           |
-| `--log-file <path>`  | `-lf <path>` | override CSV file path                   |
-| `--ref-file <path>`  | `-rf <path>` | override calibration reference file path |
-| `--grid-file <path>` | `-gf <path>` | override motion grid JSON file path      |
-| `--recalibrate`      | `-rc`        | force manual calibration                 |
-| `--duration <min>`   | `-d <min>`   | auto-stop after `min` minutes            |
+| Flag                 | Abbreviation | Effect                                                     |
+| :---                 | :---:        | :---:                                                      |
+| `--headless`         | `-h`         | no GUI, requires existing calibration                      |
+| `--no-raw`           | `-nr`        | suppress raw debug windows                                 |
+| `--no-log`           | `-nl`        | disable CSV/sidecar telemetry                              |
+| `--calib <path>`     | `-c <path>`  | override calibration file path                             |
+| `--out <path>`       | `-o <path>`  | override output directory path                             |
+| `--log-file <path>`  | `-lf <path>` | override CSV file path (relative to out path)              |
+| `--ref-file <path>`  | `-rf <path>` | override calibration reference file path                   |
+| `--grid-file <path>` | `-gf <path>` | override motion grid JSON file path (relative to out path) |
+| `--recalibrate`      | `-rc`        | force manual calibration                                   |
+| `--duration <min>`   | `-d <min>`   | auto-stop after `min` minutes                              |
 
 File input replays deterministically. Same file with the same options end up with the same saved PNGs, same CSV (modulo `RUN_START`).
 
@@ -76,7 +78,7 @@ For headless deployment `SIGTERM`/`SIGINT` trigger clean shutdown (with final fl
 
 ## Output
 
-All artifacts land in `staging/`, under `run_{time_of_run}` directory.
+All artifacts land in `staging/run_YYYYMMDD_HHMMSS/`.
 PNG frames are named `track_{col_id}_{stream_ms}_{reason}.png`.
 It also stores a CSV event log, as well as a JSON sidecar with recency-weighted motion-occupancy grids per save.
 
