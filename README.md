@@ -82,10 +82,11 @@ Columns represent as follows:
 - `changed_or_what`:
     - if `type == EVENT` stores event description, 
     - if `type == FRAME` stores changed pixels relative to last saved frame,
-- `detail` - stores: 
-    - epoch time on run start,
-    - chalk pixels on save attempt,
-    - changed pixels on slide,
+- `detail` - stores:
+    - epoch time on `RUN_START`,
+    - chalk pixels on `SAVE_{reason}_{raw_pxs}`/`SKIP_{reason}_{raw_pxs}`,
+    - changed pixels on `SLIDE_DETECTED`,
+    - wall clock duration on `FILE_EOF`.
     - `detects movement|is chalkboard sliding|is in slide recovery` (e.g. `100` means movement, no slide) if `type == FRAME`.
 
 ### JSON sidecar structure

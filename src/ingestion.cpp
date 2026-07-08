@@ -274,6 +274,7 @@ static void captureLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     cv::Mat temp_frame;
     unsigned int retry_cnt = 0;
     const auto capture_start = std::chrono::steady_clock::now();
+    std::int64_t last_stream_ms = 0; // stream time of the newest pushed frame
 
     auto now_ms = [&] {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -284,7 +285,9 @@ static void captureLoop(const RunConfig &cfg, cv::VideoCapture &cap,
     while (is_running.load(std::memory_order_relaxed)) {
         if (!cap.read(temp_frame) || temp_frame.empty()) {
             if (cfg.is_file) {
-                logger.event(0, "FILE_EOF", now_ms());
+                // stamp with the last frame's stream time, since wall clock is
+                // sped up. wall-clock processing time lives in the detail field
+                logger.event(0, "FILE_EOF", last_stream_ms, now_ms());
                 is_running = false;
                 break;
             }
@@ -306,6 +309,7 @@ static void captureLoop(const RunConfig &cfg, cv::VideoCapture &cap,
             cfg.is_file
                 ? static_cast<std::int64_t>(cap.get(cv::CAP_PROP_POS_MSEC))
                 : now_ms();
+        last_stream_ms = stream_ms;
         shared.push(temp_frame, stream_ms, cfg.is_file, is_running);
     }
 }
