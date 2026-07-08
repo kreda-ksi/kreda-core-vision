@@ -3,6 +3,7 @@
 #include "debug_hud.hpp"
 #include "frames.hpp"
 #include "grid.hpp"
+#include "masking.hpp"
 #include "signals.hpp"
 #include "telemetry.hpp"
 #include "track_log.hpp"
@@ -48,21 +49,6 @@ static cv::Mat enhanceChalkboard(const cv::Mat &raw_board,
     clahe->apply(gray, enhanced);
     cv::bitwise_not(enhanced, final);
     return final;
-}
-
-static int countChalkPixels(const cv::Mat &bin_mask, int max_comp_area) {
-    cv::Mat labels, stats, centroids;
-    const int n =
-        cv::connectedComponentsWithStats(bin_mask, labels, stats, centroids);
-
-    int chalk_pxs = 0;
-    for (int i = 1; i < n; ++i) { // 0 is bg
-        const int a = stats.at<int>(i, cv::CC_STAT_AREA);
-        if (a < max_comp_area)
-            chalk_pxs += a;
-    }
-
-    return chalk_pxs;
 }
 
 static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
