@@ -196,20 +196,26 @@ static void evaluateAndExtract(const RunConfig &cfg,
         return;
     }
 
-    if (updateSlideRecovery(state, motion_frame, track_id, stream_ms, logger))
-        return;
+    const bool recovering =
+        updateSlideRecovery(state, motion_frame, track_id, stream_ms, logger);
 
-    cv::Mat grid;
-    const int changed =
-        detectMotion(motion_frame, state.motion_ref_f32, display_frame, grid);
+    int changed = 0;
+    bool is_sliding = false;
+    bool is_moving = false;
 
-    updateDecayedGrid(state.grid_decayed_f32, grid);
+    if (!recovering) {
+        cv::Mat grid;
+        changed = detectMotion(motion_frame, state.motion_ref_f32,
+                               display_frame, grid);
 
-    const bool is_sliding = changed > SLIDE_TRIGGER_PXS &&
-                            countActiveColumns(grid) >= SLIDE_MIN_ACTIVE_COLS;
-    const bool is_moving =
-        !is_sliding && (state.was_active ? changed > MOTION_TRIGGER_PXS / 2
-                                         : changed > MOTION_TRIGGER_PXS);
+        updateDecayedGrid(state.grid_decayed_f32, grid);
+
+        is_sliding = changed > SLIDE_TRIGGER_PXS &&
+                     countActiveColumns(grid) >= SLIDE_MIN_ACTIVE_COLS;
+        is_moving =
+            !is_sliding && (state.was_active ? changed > MOTION_TRIGGER_PXS / 2
+                                             : changed > MOTION_TRIGGER_PXS);
+    }
 
     const FrameTelemetry t{track_id,
                            changed,
@@ -222,6 +228,9 @@ static void evaluateAndExtract(const RunConfig &cfg,
 
     logger.frame(t, stream_ms);
     drawHud(display_frame, t);
+
+    if (recovering)
+        return;
 
     if (stream_ms - state.last_save_ms >
         std::chrono::milliseconds(SNAPSHOT_INTERVAL).count()) {
