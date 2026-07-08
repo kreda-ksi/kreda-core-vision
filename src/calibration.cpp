@@ -120,7 +120,7 @@ warpsFor(const std::vector<cv::Point2f> &src_points, float w, float h) {
     return warps;
 }
 
-static WarpSet computeWarps(const std::vector<cv::Point2f> &src_points) {
+WarpSet computeWarps(const std::vector<cv::Point2f> &src_points) {
     return {warpsFor(src_points, CONTENT_WID, CONTENT_HEI),
             warpsFor(src_points, MOTION_WID, MOTION_HEI)};
 }

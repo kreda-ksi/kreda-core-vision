@@ -65,4 +65,5 @@ if (KREDA_BUILD_TESTS)
 
     kreda_add_test(latest_frame)
     kreda_add_test(grid)
+    kreda_add_test(calibration)
 endif()
