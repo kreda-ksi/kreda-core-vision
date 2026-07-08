@@ -33,3 +33,11 @@ TEST_CASE("grid: centered person blob stays under the veto line") {
                   cv::Scalar(255), cv::FILLED);
     CHECK(countActiveColumns(gridOccupancy(mask)) < SLIDE_MIN_ACTIVE_COLS);
 }
+
+TEST_CASE("grid: arms out stays under SLIDE_MIN_ACTIVE_COLS") {
+    cv::Mat mask = motionMask();
+    cv::rectangle(mask, cv::Point(190, 260),
+                  cv::Point(190 + MOTION_WID / 2, 460), cv::Scalar(255),
+                  cv::FILLED);
+    CHECK(countActiveColumns(gridOccupancy(mask)) < SLIDE_MIN_ACTIVE_COLS);
+}
