@@ -53,3 +53,9 @@ TEST_CASE("validateDrift: fat perspective terms refuse") {
     h.at<double>(2, 0) = 0.01;
     CHECK_FALSE(validateDrift(h, cv::Size(1920, 1080)));
 }
+
+TEST_CASE("validateDrift: frame-exit translation refuses") {
+    cv::Mat h = cv::Mat::eye(3, 3, CV_64F);
+    h.at<double>(0, 2) = 960.0; // half the frame out of bounds
+    CHECK_FALSE(validateDrift(h, cv::Size(1920, 1080)));
+}
