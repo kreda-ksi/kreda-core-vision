@@ -41,3 +41,9 @@ TEST_CASE("validateDrift: 70% scale refuses") {
     h.at<double>(2, 2) = 1.0;
     CHECK_FALSE(validateDrift(h, cv::Size(1920, 1080)));
 }
+
+TEST_CASE("validateDrift: 12% scale warns but accepts") {
+    cv::Mat h = cv::Mat::eye(3, 3, CV_64F) * 1.12;
+    h.at<double>(2, 2) = 1.0;
+    CHECK(validateDrift(h, cv::Size(1920, 1080)));
+}
