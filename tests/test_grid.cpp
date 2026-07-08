@@ -45,3 +45,10 @@ TEST_CASE("grid: arms out stays under SLIDE_MIN_ACTIVE_COLS") {
 TEST_CASE("grid: empty mask activates nothing") {
     CHECK(countActiveColumns(gridOccupancy(motionMask())) == 0);
 }
+
+TEST_CASE("grid: occupancy output has contract dimensions and type") {
+    const cv::Mat g = gridOccupancy(motionMask());
+    CHECK(g.cols == GRID_COLS);
+    CHECK(g.rows == GRID_ROWS);
+    CHECK(g.type() == CV_8U);
+}
