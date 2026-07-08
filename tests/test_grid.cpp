@@ -52,3 +52,10 @@ TEST_CASE("grid: occupancy output has contract dimensions and type") {
     CHECK(g.rows == GRID_ROWS);
     CHECK(g.type() == CV_8U);
 }
+
+TEST_CASE("decay: first grid initializes the state") {
+    cv::Mat decayed;
+    cv::Mat grid(GRID_ROWS, GRID_COLS, CV_8U, cv::Scalar(100));
+    updateDecayedGrid(decayed, grid);
+    CHECK(decayed.at<float>(0, 0) == 100.0f);
+}
