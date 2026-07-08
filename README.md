@@ -31,9 +31,13 @@ A body-masking filter (connected-component analysis) distinguishes lecturer-size
 Occluded frames are also saved, to ensure no data loss over precision. 
 The orchestrator's dedup picks clean frames.
 
-## Preview (GUI mode)
+## Preview
+
+### Raw footage
 
 ![Before preview](docs/before.gif)
+
+### GUI preview
 
 ![After preview](docs/after.gif)
 
