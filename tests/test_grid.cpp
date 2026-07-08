@@ -41,3 +41,7 @@ TEST_CASE("grid: arms out stays under SLIDE_MIN_ACTIVE_COLS") {
                   cv::FILLED);
     CHECK(countActiveColumns(gridOccupancy(mask)) < SLIDE_MIN_ACTIVE_COLS);
 }
+
+TEST_CASE("grid: empty mask activates nothing") {
+    CHECK(countActiveColumns(gridOccupancy(motionMask())) == 0);
+}
