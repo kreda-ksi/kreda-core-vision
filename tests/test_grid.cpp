@@ -59,3 +59,11 @@ TEST_CASE("decay: first grid initializes the state") {
     updateDecayedGrid(decayed, grid);
     CHECK(decayed.at<float>(0, 0) == 100.0f);
 }
+
+TEST_CASE("decay: constant input is a fixed point (no drift under activity)") {
+    cv::Mat decayed;
+    cv::Mat grid(GRID_ROWS, GRID_COLS, CV_8U, cv::Scalar(100));
+    for (int i = 0; i < 127; ++i)
+        updateDecayedGrid(decayed, grid);
+    CHECK(decayed.at<float>(0, 0) == 100.0f);
+}
