@@ -2,6 +2,7 @@
 #include "config.hpp"
 #include "debug_hud.hpp"
 #include "frames.hpp"
+#include "grid.hpp"
 #include "signals.hpp"
 #include "telemetry.hpp"
 #include "track_log.hpp"
@@ -91,38 +92,12 @@ static bool saveIfChanged(const RunConfig &cfg, const cv::Mat &frame,
     logger.event(track_id, std::format("SAVE_{}_{}", reason, raw_pxs),
                  stream_ms, chalk_pxs);
 
-    if (!state.grid_decayed_f32.empty()) {
-        cv::Mat grid_8u;
-        state.grid_decayed_f32.convertTo(grid_8u, CV_8U);
-        sidecar.logSave(filename, stream_ms, std::format("SAVE_{}", reason),
-                        grid_8u);
-    }
+    logGrid(state.grid_decayed_f32, filename, reason, stream_ms, sidecar);
 
     state.last_save_ms = stream_ms;
     state.last_saved_frame = frame.clone();
     state.save_flash = 15;
     return true;
-}
-
-static cv::Mat gridOccupancy(const cv::Mat &bin_mask) {
-    cv::Mat grid;
-    cv::resize(bin_mask, grid, cv::Size(GRID_COLS, GRID_ROWS), 0, 0,
-               cv::INTER_AREA);
-    return grid;
-}
-
-static int countActiveColumns(const cv::Mat &grid) {
-    int active_cols = 0;
-
-    for (int c{}; c < grid.cols; ++c) {
-        for (int r{}; r < grid.rows; ++r)
-            if (grid.at<std::uint8_t>(r, c) > GRID_CELL_ACTIVE) {
-                active_cols++;
-                break;
-            }
-    }
-
-    return active_cols;
 }
 
 static int detectMotion(const cv::Mat &motion_frame, cv::Mat &ref_f32,
@@ -160,8 +135,7 @@ static bool updateSlideRecovery(TrackState &state, const cv::Mat &motion_frame,
                                 unsigned int track_id, std::int64_t stream_ms,
                                 TrackLogger &logger) {
     if (state.slide_recover) {
-        if (!state.grid_decayed_f32.empty())
-            state.grid_decayed_f32 *= GRID_DECAY;
+        decayGrid(state.grid_decayed_f32);
 
         state.recover_cooldown++;
         if (state.recover_cooldown >= SLIDE_COOLDOWN) {
@@ -239,14 +213,7 @@ static void evaluateAndExtract(const RunConfig &cfg,
     const int changed =
         detectMotion(motion_frame, state.motion_ref_f32, display_frame, grid);
 
-    if (state.grid_decayed_f32.empty()) {
-        grid.convertTo(state.grid_decayed_f32, CV_32F);
-    } else {
-        state.grid_decayed_f32 *= GRID_DECAY;
-        cv::Mat grid_f32;
-        grid.convertTo(grid_f32, CV_32F);
-        state.grid_decayed_f32 = cv::max(state.grid_decayed_f32, grid_f32);
-    }
+    updateDecayedGrid(state.grid_decayed_f32, grid);
 
     const bool is_sliding = changed > SLIDE_TRIGGER_PXS &&
                             countActiveColumns(grid) >= SLIDE_MIN_ACTIVE_COLS;
