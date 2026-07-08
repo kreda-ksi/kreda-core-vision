@@ -40,3 +40,26 @@ To set up the engine, first run in a new room opens a calibration window.
 Click 4 corners per board column (top-left, top-right, bottom-right, bottom-left).
 Clicks are stored (default: `calibration.xml`) with a reference frame (default: `calibration_ref.png`), warp matrices are derived at load.
 Subsequent startups self-correct small camera drift (ORB + RANSAC homography against the reference) and refuse loudly on large changes (in that case, re-run with `-rc/--recalibrate`).
+
+## Usage
+
+```bash
+./kreda_vision_engine [OPTIONS] <rtsp-url | video-file>
+```
+
+| Flag                 | Abbreviation | Effect                                   |
+| :---                 | :---:        | :---:                                    |
+| --headless           | -h           | no GUI, requires existing calibration    |
+| --no-raw             | -nr          | suppress raw debug windows               |
+| --no-log             | -nl          | disable CSV/sidecar telemetry            |
+| --calib \<path\>     | -c \<path\>  | override calibration file path           |
+| --out \<path\>       | -o \<path\>  | override output directory path           |
+| --log-file \<path\>  | -lf \<path\> | override CSV file path                   |
+| --ref-file \<path\>  | -rf \<path\> | override calibration reference file path |
+| --grid-file \<path\> | -gf \<path\> | override motion grid JSON file path      |
+| --recalibrate        | -rc          | force manual calibration                 |
+| --duration \<min\>   | -d \<min\>   | auto-stop after `min` minutes            |
+
+File input replays deterministically. Same file with the same options end up with the same saved PNGs, same CSV (modulo `RUN_START`).
+
+For headless deployment `SIGTERM`/`SIGINT` trigger clean shutdown (with final flush).
