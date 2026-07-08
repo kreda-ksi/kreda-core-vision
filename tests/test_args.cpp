@@ -1,8 +1,6 @@
 #include "args.hpp"
 #include "config.hpp"
 #include "doctest.h"
-#include <array>
-#include <fstream>
 #include <initializer_list>
 
 using namespace kreda;
