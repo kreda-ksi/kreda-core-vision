@@ -22,3 +22,10 @@ TEST_CASE("masking: mixed mask counts only the strokes") {
     cv::rectangle(mask, {500, 100}, {699, 299}, cv::Scalar(255), cv::FILLED);
     CHECK(countChalkPixels(mask, 1000) == 100);
 }
+
+TEST_CASE("masking: blob exactly at ceiling is excluded") {
+    cv::Mat mask = cv::Mat::zeros(720, 1080, CV_8U);
+    // 40x25 = 1000px
+    cv::rectangle(mask, {0, 0}, {39, 24}, cv::Scalar(255), cv::FILLED);
+    CHECK(countChalkPixels(mask, 1000) == 0);
+}
