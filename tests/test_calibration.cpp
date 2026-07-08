@@ -31,3 +31,7 @@ TEST_CASE("warps: content and motion sets differ per column") {
     for (unsigned int i{}; i < COLUMN_CNT; ++i)
         CHECK(cv::norm(ws.content[i], ws.motion[i], cv::NORM_INF) > 1e-9);
 }
+
+TEST_CASE("validateDrift: identity passes") {
+    CHECK(validateDrift(cv::Mat::eye(3, 3, CV_64F), cv::Size(1920, 1080)));
+}

@@ -169,7 +169,7 @@ static bool estimateDrift(const cv::Mat &ref, const cv::Mat &curr, cv::Mat &H) {
     return true;
 }
 
-static bool validateDrift(const cv::Mat &H, const cv::Size &frame_size) {
+bool validateDrift(const cv::Mat &H, const cv::Size &frame_size) {
     // scale check via sqrt(|det|) of the upper-left 2x2
     const double det = H.at<double>(0, 0) * H.at<double>(1, 1) -
                        H.at<double>(0, 1) * H.at<double>(1, 0);

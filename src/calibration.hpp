@@ -13,6 +13,7 @@ struct WarpSet {
 };
 
 WarpSet computeWarps(const std::vector<cv::Point2f> &src_points);
+bool validateDrift(const cv::Mat &H, const cv::Size &frame_size);
 
 // runs the cal loop and returns the calculated mats
 WarpSet runCalibration(const RunConfig &cfg, cv::VideoCapture &cap);
