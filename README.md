@@ -33,9 +33,9 @@ The orchestrator's dedup picks clean frames.
 
 ## Preview (GUI mode)
 
-<video src="https://raw.githubusercontent.com/kreda-ksi/kreda-core-vision/main/docs/before.mp4" controls="controls" muted="muted" style="max-width: 100%;"></video>
+![Before preview](docs/before.gif)
 
-<video src="https://raw.githubusercontent.com/kreda-ksi/kreda-core-vision/main/docs/after.mp4" controls="controls" muted="muted" style="max-width: 100%;"></video>
+![After preview](docs/after.gif)
 
 ## Setup and calibration
 
