@@ -49,16 +49,16 @@ Subsequent startups self-correct small camera drift (ORB + RANSAC homography aga
 
 | Flag                 | Abbreviation | Effect                                   |
 | :---                 | :---:        | :---:                                    |
-| --headless           | -h           | no GUI, requires existing calibration    |
-| --no-raw             | -nr          | suppress raw debug windows               |
-| --no-log             | -nl          | disable CSV/sidecar telemetry            |
-| --calib \<path\>     | -c \<path\>  | override calibration file path           |
-| --out \<path\>       | -o \<path\>  | override output directory path           |
-| --log-file \<path\>  | -lf \<path\> | override CSV file path                   |
-| --ref-file \<path\>  | -rf \<path\> | override calibration reference file path |
-| --grid-file \<path\> | -gf \<path\> | override motion grid JSON file path      |
-| --recalibrate        | -rc          | force manual calibration                 |
-| --duration \<min\>   | -d \<min\>   | auto-stop after `min` minutes            |
+| `--headless`         | `-h`         | no GUI, requires existing calibration    |
+| `--no-raw`           | `-nr`        | suppress raw debug windows               |
+| `--no-log`           | `-nl`        | disable CSV/sidecar telemetry            |
+| `--calib <path>`     | `-c <path>`  | override calibration file path           |
+| `--out <path>`       | `-o <path>`  | override output directory path           |
+| `--log-file <path>`  | `-lf <path>` | override CSV file path                   |
+| `--ref-file <path>`  | `-rf <path>` | override calibration reference file path |
+| `--grid-file <path>` | `-gf <path>` | override motion grid JSON file path      |
+| `--recalibrate`      | `-rc`        | force manual calibration                 |
+| `--duration <min>`   | `-d <min>`   | auto-stop after `min` minutes            |
 
 File input replays deterministically. Same file with the same options end up with the same saved PNGs, same CSV (modulo `RUN_START`).
 
