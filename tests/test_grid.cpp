@@ -1,6 +1,6 @@
-#include "config.hpp"
+#include "core/config.hpp"
+#include "cv/grid.hpp"
 #include "doctest.h"
-#include "grid.hpp"
 #include <opencv2/opencv.hpp>
 
 using namespace kreda;

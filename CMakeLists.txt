@@ -18,8 +18,8 @@ if (APPLE) # explicitly write apple sdk path
 endif()
 
 add_library(kreda_vision_lib STATIC
-    src/calibration.cpp
-    src/ingestion.cpp
+    src/cv/calibration.cpp
+    src/cv/ingestion.cpp
 )
 target_link_libraries(kreda_vision_lib PUBLIC 
     opencv_core

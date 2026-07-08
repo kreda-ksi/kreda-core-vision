@@ -1,5 +1,5 @@
+#include "cv/masking.hpp"
 #include "doctest.h"
-#include "masking.hpp"
 #include <opencv2/imgproc.hpp>
 
 using namespace kreda;

@@ -1,9 +1,8 @@
 #pragma once
-#include "config.hpp"
-#include "track_log.hpp"
+#include "core/config.hpp"
+#include "io/track_log.hpp"
 #include <cstdint>
 #include <opencv2/opencv.hpp>
-#include <string>
 
 namespace kreda {
 

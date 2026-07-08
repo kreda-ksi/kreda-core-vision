@@ -1,5 +1,5 @@
 #pragma once
-#include "config.hpp"
+#include "core/config.hpp"
 #include <chrono>
 #include <cstdlib>
 #include <ctime>

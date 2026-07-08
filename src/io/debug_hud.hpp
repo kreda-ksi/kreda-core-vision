@@ -1,6 +1,6 @@
 #pragma once
-#include "config.hpp"
-#include "telemetry.hpp"
+#include "core/config.hpp"
+#include "io/telemetry.hpp"
 #include <format>
 #include <opencv2/imgproc.hpp>
 #include <string>

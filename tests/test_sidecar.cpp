@@ -1,6 +1,6 @@
-#include "config.hpp"
+#include "core/config.hpp"
 #include "doctest.h"
-#include "track_log.hpp"
+#include "io/track_log.hpp"
 #include <filesystem>
 #include <fstream>
 #include <opencv2/core.hpp>

@@ -1,5 +1,5 @@
-#include "args.hpp"
-#include "config.hpp"
+#include "core/args.hpp"
+#include "core/config.hpp"
 #include "doctest.h"
 #include <initializer_list>
 

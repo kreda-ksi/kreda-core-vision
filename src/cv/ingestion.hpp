@@ -1,7 +1,7 @@
 #pragma once
 
-#include "calibration.hpp"
-#include "config.hpp"
+#include "core/config.hpp"
+#include "cv/calibration.hpp"
 #include <opencv2/opencv.hpp>
 #include <string>
 

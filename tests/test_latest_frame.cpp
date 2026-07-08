@@ -1,6 +1,5 @@
+#include "cv/frames.hpp"
 #include "doctest.h"
-#include "frames.hpp"
-
 #include <atomic>
 #include <chrono>
 #include <opencv2/core.hpp>

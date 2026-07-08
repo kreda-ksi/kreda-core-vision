@@ -1,8 +1,8 @@
-#include "args.hpp"
-#include "calibration.hpp"
-#include "config.hpp"
-#include "ingestion.hpp"
-#include "signals.hpp"
+#include "core/args.hpp"
+#include "core/config.hpp"
+#include "core/signals.hpp"
+#include "cv/calibration.hpp"
+#include "cv/ingestion.hpp"
 #include <csignal>
 #include <format>
 #include <iostream>

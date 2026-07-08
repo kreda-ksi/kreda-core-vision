@@ -1,5 +1,5 @@
 #pragma once
-#include "config.hpp"
+#include "core/config.hpp"
 #include "telemetry.hpp"
 #include <chrono>
 #include <cstdint>

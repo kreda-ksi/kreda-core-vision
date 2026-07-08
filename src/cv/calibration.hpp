@@ -1,6 +1,5 @@
 #pragma once
-
-#include "config.hpp"
+#include "core/config.hpp"
 #include <array>
 #include <opencv2/opencv.hpp>
 #include <vector>
