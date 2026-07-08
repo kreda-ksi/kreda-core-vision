@@ -113,3 +113,11 @@ find src -name '*.cpp' -o -name '*.hpp' \
 ```
 
 CI enforces format (via `clang-format`), lint (via `clang-tidy`), and build+test on Ubuntu.
+
+## Design decisions
+
+- **No ML-based human detection** - given the constraints, results obtained by a motion-based model end up being on par/better than people detection with a HOG algorithm and linear SVM.
+- **No background subtraction** - MOG2-like models get poisoned by stationary lecturers (ghosts, recovery deadlocks). Motion is frame differencing against an EMA reference, presence is never inferred.
+- **Recall-first** - the LLM donwstream tolerates occluded and duplicate frames, but it can't recover a missed board state.
+- **Two time bases** - all telemetry and filenames use stream time (`POS_MSEC` for files, monotonic-since-start for live). Wall clock appears only in the `RUN_START` bridge event.
+- **Constants are dependent** - thresholds are area-fractions, grid size is motion resolution-based.
