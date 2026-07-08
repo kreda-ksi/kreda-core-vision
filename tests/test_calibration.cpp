@@ -35,3 +35,9 @@ TEST_CASE("warps: content and motion sets differ per column") {
 TEST_CASE("validateDrift: identity passes") {
     CHECK(validateDrift(cv::Mat::eye(3, 3, CV_64F), cv::Size(1920, 1080)));
 }
+
+TEST_CASE("validateDrift: 70% scale refuses") {
+    cv::Mat h = cv::Mat::eye(3, 3, CV_64F) * 1.7;
+    h.at<double>(2, 2) = 1.0;
+    CHECK_FALSE(validateDrift(h, cv::Size(1920, 1080)));
+}
