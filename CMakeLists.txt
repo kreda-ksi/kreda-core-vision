@@ -42,16 +42,27 @@ target_link_libraries(kreda_vision_engine PRIVATE
 
 option(KREDA_BUILD_TESTS "Build unit tests" ON)
 if (KREDA_BUILD_TESTS)
-    add_executable(kreda_vision_tests
-        tests/test_main.cpp
-        tests/test_latest_frame.cpp
-    )
-    target_link_libraries(kreda_vision_tests PRIVATE
-        kreda_vision_lib
-    )
-    target_include_directories(kreda_vision_tests PRIVATE
-        tests
-    )
-    add_test(NAME unit COMMAND kreda_vision_tests)
-    set_tests_properties(unit PROPERTIES TIMEOUT 60)
+    function(kreda_add_test BASE_NAME)
+        set(TEST_NAME "test_${BASE_NAME}")
+        set(SOURCE_FILE "tests/${TEST_NAME}.cpp")
+
+        add_executable(${TEST_NAME}
+            ${SOURCE_FILE}
+            tests/test_main.cpp
+        )
+
+        target_link_libraries(${TEST_NAME} PRIVATE
+            kreda_vision_lib
+        )
+
+        target_include_directories(${TEST_NAME} PRIVATE
+            tests
+        )
+
+        add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+        set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 60)
+    endfunction()
+
+    kreda_add_test(latest_frame)
+    kreda_add_test(grid)
 endif()
