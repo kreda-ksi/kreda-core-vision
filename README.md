@@ -63,3 +63,41 @@ Subsequent startups self-correct small camera drift (ORB + RANSAC homography aga
 File input replays deterministically. Same file with the same options end up with the same saved PNGs, same CSV (modulo `RUN_START`).
 
 For headless deployment `SIGTERM`/`SIGINT` trigger clean shutdown (with final flush).
+
+## Output
+
+All artifacts land in `staging/`, under `run_{time_of_run}` directory.
+PNG frames are named `track_{col_id}_{stream_ms}_{reason}.png`.
+It also stores a CSV event log, as well as a JSON sidecar with recency-weighted motion-occupancy grids per save.
+
+### CSV log structure
+
+Columns represent as follows:
+
+- `t_ms` - relative time of the row data,
+- `track` - column ID of the row data,
+- `type`:
+    - `EVENT` on image save, slide, start/end of file,
+    - `FRAME` otherwise,
+- `changed_or_what`:
+    - if `type == EVENT` stores event description, 
+    - if `type == FRAME` stores changed pixels relative to last saved frame,
+- `detail` - stores: 
+    - epoch time on run start,
+    - chalk pixels on save attempt,
+    - changed pixels on slide,
+    - `detects movement|is chalkboard sliding|is in slide recovery` (e.g. `100` means movement, no slide) if `type == FRAME`.
+
+### JSON sidecar structure
+
+The sidecar consists of two objects - a header and frames.
+
+Header stores only the grid dimensions (calculated in [`config.hpp`](src/config.hpp)).
+
+The `frames` object stores the state of the motion grid on each frame where `type == EVENT` (from [CSV log structure](#csv-log-structure)).
+
+Each frame stores: 
+
+- `timestamp_ms` - its timestamp (time relative to run start),
+- `event_type` - as the name suggests - the type of the event that occured on that frame,
+- `occupancy_grid` - the actual grid data, where each cell is a value from 0-9 (quantized from 0-255).
