@@ -246,8 +246,7 @@ static void processColumn(const RunConfig &cfg, const cv::Mat &frame,
     // homography
     cv::warpPerspective(
         frame, content_raw, content_warp,
-        cv::Size(static_cast<int>(dims.width), static_cast<int>(dims.height)),
-        cv::INTER_CUBIC);
+        cv::Size(static_cast<int>(dims.width), static_cast<int>(dims.height)));
     cv::warpPerspective(
         frame, motion_raw, motion_warp,
         cv::Size(static_cast<int>(MOTION_WID), static_cast<int>(MOTION_HEI)));
