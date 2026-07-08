@@ -9,6 +9,13 @@ KREDA consists of three main parts:
 - **[kreda-orchestrator](https://github.com/kreda-ksi/kreda-orchestrator)** (Python) dedupes, transcribes via VLM, and synthesizes notes,
 - **[kreda-datasets](https://github.com/kreda-ksi/kreda-datasets)** holds test footage.
 
+## Dependencies
+
+- [C++20](https://gcc.gnu.org/projects/cxx-status.html#cxx20)
+- [OpenCV 4.6.0](https://github.com/opencv/opencv)
+- [CMake 3.20](https://github.com/kitware/cmake)
+- [doctest](https://github.com/doctest/doctest)
+
 ## How it works
 
 One capture thread reads the stream (RTSP or file), one processing thread consumes frames through a depth-1 queue (latest wins live, lossless for files).
